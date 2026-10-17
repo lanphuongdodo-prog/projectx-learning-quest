@@ -1,0 +1,6 @@
+{
+  "name": "PROJECT X | LEARNING QUEST",
+  "description": "Hệ thống Gamification Học tập & Learning Quest dành cho học sinh lớp 10A Trường Tiểu học, THCS & THPT FPT Hậu Giang",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
