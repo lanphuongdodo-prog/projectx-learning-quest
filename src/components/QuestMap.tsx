@@ -37,41 +37,51 @@ export const QuestMap: React.FC<QuestMapProps> = ({ stages, onOpenQuest, onReque
         </p>
       </div>
 
-      {/* Stages List */}
-      <div className="space-y-10">
-        {stages.map((stage, stageIdx) => {
-          // Color accents by stage
-          const themeStyles = getStageTheme(stage.colorTheme);
+      {/* Stages List or Friendly Empty State */}
+      {stages.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-amber-200/90 p-8 sm:p-12 text-center max-w-xl mx-auto shadow-sm space-y-4">
+          <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-100 flex items-center justify-center text-3xl text-amber-600 shadow-inner">
+            🧭
+          </div>
+          <h3 className="text-lg sm:text-xl font-bold text-slate-800">
+            Hành trình học tập đang chuẩn bị
+          </h3>
+          <p className="text-sm text-slate-600 leading-relaxed font-medium">
+            Hành trình học tập của bạn đang chờ được mở khóa. Hãy quay lại khi giáo viên công bố nội dung mới nhé!
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-10">
+          {stages.map((stage, stageIdx) => {
+            // Color accents by stage
+            const themeStyles = getStageTheme(stage.colorTheme);
 
-          return (
-            <div
-              key={stage.id}
-              className="relative rounded-3xl bg-white border border-amber-200/90 shadow-md p-5 sm:p-7 transition-all duration-200 hover:shadow-lg"
-            >
-              {/* Stage Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-100">
-                <div className="flex items-center gap-3.5">
-                  <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-xs ${themeStyles.iconBg}`}
-                  >
-                    {stage.icon}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-[11px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${themeStyles.badge}`}
-                      >
-                        Giai đoạn {stage.order}
-                      </span>
-                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                        NỘI DUNG DEMO
-                      </span>
+            return (
+              <div
+                key={stage.id}
+                className="relative rounded-3xl bg-white border border-amber-200/90 shadow-md p-5 sm:p-7 transition-all duration-200 hover:shadow-lg"
+              >
+                {/* Stage Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-100">
+                  <div className="flex items-center gap-3.5">
+                    <div
+                      className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-xs ${themeStyles.iconBg}`}
+                    >
+                      {stage.icon}
                     </div>
-                    <h3 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight mt-1">
-                      {stage.title}
-                    </h3>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-[11px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${themeStyles.badge}`}
+                        >
+                          Giai đoạn {stage.order}
+                        </span>
+                      </div>
+                      <h3 className="text-lg sm:text-xl font-black text-slate-800 tracking-tight mt-1">
+                        {stage.title}
+                      </h3>
+                    </div>
                   </div>
-                </div>
 
                 <p className="text-xs text-slate-500 max-w-sm sm:text-right">
                   {stage.description}
@@ -218,8 +228,9 @@ export const QuestMap: React.FC<QuestMapProps> = ({ stages, onOpenQuest, onReque
           );
         })}
       </div>
-    </div>
-  );
+    )}
+  </div>
+);
 };
 
 function getStageTheme(colorTheme: string) {

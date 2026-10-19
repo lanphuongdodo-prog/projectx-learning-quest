@@ -96,7 +96,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({ user, stag
             <div className="w-8 h-8 mx-auto rounded-xl bg-white/20 flex items-center justify-center mb-1.5 text-rose-200">
               <Flame className="w-5 h-5 fill-rose-300" />
             </div>
-            <div className="text-xl sm:text-2xl font-black">{user.streak || 1}</div>
+            <div className="text-xl sm:text-2xl font-black">{user.streak ?? 0}</div>
             <div className="text-[11px] font-medium text-white/85">Ngày liên tiếp</div>
           </div>
         </div>

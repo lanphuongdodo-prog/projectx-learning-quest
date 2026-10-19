@@ -120,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab, onOpenN
                   title="Chuỗi ngày học tập tích cực"
                 >
                   <Flame className="w-4 h-4 fill-rose-500 text-rose-500" />
-                  <span>{user.streak || 1} ngày</span>
+                  <span>{user.streak ?? 0} ngày</span>
                 </div>
 
                 {/* XP Pill */}

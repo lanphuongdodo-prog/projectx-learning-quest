@@ -4,14 +4,69 @@ import path from 'node:path';
 import {
   User,
   Stage,
+  Quest,
   StudentProgress,
   EvidenceSubmission,
   TeacherFeedback,
   PortfolioData,
+  PortfolioBackgroundItem,
   NotificationItem,
   FlashcardReviewState,
 } from '../src/types/index.ts';
 import { hashPassword } from '../src/utils/security.ts';
+
+export const DEFAULT_PORTFOLIO_BACKGROUNDS: PortfolioBackgroundItem[] = [
+  {
+    id: 'bg-wave',
+    name: 'Sóng Tri Thức (Ocean Blue)',
+    description: 'Gam màu xanh đại dương sâu thẳm, kích thích tư duy khai phóng và tinh thần học hỏi.',
+    url: 'linear-gradient(135deg, #1e3a8a 0%, #0284c7 50%, #38bdf8 100%)',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&w=300&q=80',
+    isActive: true,
+    order: 1,
+    createdAt: '2026-10-19T00:00:00.000Z',
+  },
+  {
+    id: 'bg-sunset',
+    name: 'Hoàng Hôn Sáng Tạo (Warm Sunset)',
+    description: 'Ánh chiều rực rỡ tượng trưng cho nhiệt huyết đổi mới và bản lĩnh vượt thử thách.',
+    url: 'linear-gradient(135deg, #7c2d12 0%, #ea580c 50%, #facc15 100%)',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?auto=format&fit=crop&w=300&q=80',
+    isActive: true,
+    order: 2,
+    createdAt: '2026-10-19T00:00:00.000Z',
+  },
+  {
+    id: 'bg-aurora',
+    name: 'Bắc Cực Quang (Emerald Aurora)',
+    description: 'Vũ điệu ánh sáng ngọc lục bảo huyền ảo, biểu trưng cho những sáng kiến đột phá.',
+    url: 'linear-gradient(135deg, #064e3b 0%, #059669 50%, #34d399 100%)',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?auto=format&fit=crop&w=300&q=80',
+    isActive: true,
+    order: 3,
+    createdAt: '2026-10-19T00:00:00.000Z',
+  },
+  {
+    id: 'bg-galaxy',
+    name: 'Vũ Trụ Ý Tưởng (Deep Cosmos)',
+    description: 'Bầu trời tinh tú bao la mở ra không gian tưởng tượng vô hạn cho các nhà nghiên cứu trẻ.',
+    url: 'linear-gradient(135deg, #2e1065 0%, #6b21a8 50%, #c084fc 100%)',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=300&q=80',
+    isActive: true,
+    order: 4,
+    createdAt: '2026-10-19T00:00:00.000Z',
+  },
+  {
+    id: 'bg-minimal',
+    name: 'Tối Giản Học Đường (Clean Notebook)',
+    description: 'Sạch sẽ, thanh lịch, tạo cảm giác tập trung tuyệt đối vào hành trình ghi nhận và phản tư.',
+    url: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=300&q=80',
+    isActive: true,
+    order: 5,
+    createdAt: '2026-10-19T00:00:00.000Z',
+  },
+];
 
 export interface DatabaseSchema {
   users: User[];
@@ -20,6 +75,7 @@ export interface DatabaseSchema {
   evidence: EvidenceSubmission[];
   feedback: TeacherFeedback[];
   portfolios: Record<string, PortfolioData>; // studentId -> PortfolioData
+  portfolioBackgrounds: PortfolioBackgroundItem[];
   notifications: NotificationItem[];
   flashcardProgress: Record<string, Record<string, FlashcardReviewState>>; // studentId -> { cardId -> FlashcardReviewState }
   lastUpdated: string;
@@ -81,8 +137,8 @@ function generateSeedData(): DatabaseSchema {
       salt: teacherCreds.salt,
       title: 'Giáo viên Chủ nhiệm & Hướng dẫn Project X 10A',
     },
-    // 32 Official Grade 10A Students
-    ...OFFICIAL_10A_ROSTER.map((stu, idx) => ({
+    // 32 Official Grade 10A Students - All start cleanly with 0 XP, Level 0, 0 Streak days
+    ...OFFICIAL_10A_ROSTER.map((stu) => ({
       id: `student-${stu.mshs}`,
       role: 'student' as const,
       displayName: stu.name,
@@ -90,9 +146,12 @@ function generateSeedData(): DatabaseSchema {
       className: '10A',
       school: 'Trường Tiểu học, THCS & THPT FPT Hậu Giang',
       avatar: stu.avatar,
-      xp: idx === 0 ? 350 : idx === 1 ? 280 : 0,
-      level: idx === 0 ? 3 : idx === 1 ? 2 : 1,
-      streak: idx === 0 ? 5 : idx === 1 ? 3 : 1,
+      xp: 0,
+      level: 0,
+      streak: 0,
+      totalActiveDays: 0,
+      activeDates: [],
+      portfolioBackgroundId: 'bg-wave',
     })),
   ];
 
@@ -100,7 +159,8 @@ function generateSeedData(): DatabaseSchema {
   const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
   const nextWeek = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
 
-  const stages: Stage[] = [
+  const stages: Stage[] = [];
+  const _unusedStages: any[] = [
     {
       id: 'stage-1',
       title: 'Giai đoạn 1: Khởi động & Thấu cảm vấn đề (Empathize)',
@@ -669,60 +729,16 @@ function generateSeedData(): DatabaseSchema {
     },
   ];
 
-  const portfolios: Record<string, PortfolioData> = {
-    [firstStudentId]: {
-      studentId: firstStudentId,
-      template: 'journey',
-      colorTheme: 'orange',
-      bio: 'Học sinh lớp 10A FPT Hậu Giang, đam mê giải quyết các bài toán xã hội bằng công nghệ và tư duy đổi mới.',
-      motto: 'Mỗi thách thức là một hạt mầm cho giải pháp đột phá!',
-      selectedBadges: ['first_quest'],
-      selectedEvidences: ['evi-01'],
-      reflectionNotes: {
-        learned: 'Em học được rằng trước khi vội vã đưa ra giải pháp, việc kiên nhẫn lắng nghe câu chuyện thật của người dùng là điều quan trọng nhất.',
-        challenges: 'Lúc đầu phỏng vấn bác nông dân, em khá ngại ngùng nhưng khi chân thành lắng nghe, các bác đã chia sẻ rất nhiệt tình.',
-        proudest: 'Cả nhóm đã cùng nhau hoàn thành bản đồ thấu cảm đầu tiên và được cô Phương khen ngợi.',
-        futureGoal: 'Cùng nhóm chế tạo thành công một mô hình bao bì sinh học từ phụ phẩm nông nghiệp.',
-      },
-      stickers: [
-        { id: 'stk-1', stickerKey: 'rocket', x: 82, y: 15, scale: 1.2, rotation: 12 },
-        { id: 'stk-2', stickerKey: 'star', x: 12, y: 35, scale: 1.0, rotation: -8 },
-      ],
-      updatedAt: nowIso,
-    },
-  };
-
-  const notifications: NotificationItem[] = [
-    {
-      id: 'notif-01',
-      studentId: firstStudentId,
-      questId: 'quest-1-2',
-      type: 'deadline_24h',
-      title: 'Nhắc nhở Thời hạn: Chặng 02',
-      message: 'Bạn còn 24 giờ để hoàn thành Chặng 02: Giải mã Insight. Hãy quay lại hành trình và chinh phục thử thách nhé!',
-      createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-      isRead: false,
-    },
-  ];
-
-  const flashcardProgress: Record<string, Record<string, FlashcardReviewState>> = {
-    [firstStudentId]: {
-      'fc-1-1': { cardId: 'fc-1-1', state: 'mastered', updatedAt: nowIso },
-      'fc-1-2': { cardId: 'fc-1-2', state: 'mastered', updatedAt: nowIso },
-      'fc-1-3': { cardId: 'fc-1-3', state: 'need_review', updatedAt: nowIso },
-      'fc-1-4': { cardId: 'fc-1-4', state: 'mastered', updatedAt: nowIso },
-    },
-  };
-
   return {
     users,
     stages,
-    progress,
-    evidence,
-    feedback,
-    portfolios,
-    notifications,
-    flashcardProgress,
+    progress: {},
+    evidence: [],
+    feedback: [],
+    portfolios: {},
+    portfolioBackgrounds: [...DEFAULT_PORTFOLIO_BACKGROUNDS],
+    notifications: [],
+    flashcardProgress: {},
     lastUpdated: nowIso,
   };
 }
@@ -749,7 +765,37 @@ class Database {
         const hasOfficialStudents = parsed.users && parsed.users.some((u: any) => u.studentId === 'FHG30070');
         if (hasOfficialStudents) {
           this.data = parsed;
+          if (!this.data.portfolioBackgrounds || this.data.portfolioBackgrounds.length === 0) {
+            this.data.portfolioBackgrounds = [...DEFAULT_PORTFOLIO_BACKGROUNDS];
+          }
+
+          // Clean out legacy demo stages if present as requested by requirements
+          if (this.data.stages && this.data.stages.some((s) => s.id === 'stage-1' || s.quests.some((q) => q.isDemoContent || q.id === 'quest-1-1'))) {
+            this.data.stages = [];
+            this.data.progress = {};
+            this.data.evidence = [];
+            this.data.feedback = [];
+            this.data.portfolios = {};
+            this.data.notifications = [];
+            this.data.flashcardProgress = {};
+          }
+
+          this.data.users = this.data.users.map((u) => {
+            if (u.role === 'student') {
+              return {
+                ...u,
+                xp: u.xp && this.data.stages.length > 0 ? u.xp : 0,
+                level: u.level && this.data.stages.length > 0 ? u.level : 0,
+                streak: u.streak && this.data.stages.length > 0 ? u.streak : 0,
+                totalActiveDays: u.totalActiveDays && this.data.stages.length > 0 ? u.totalActiveDays : 0,
+                activeDates: this.data.stages.length > 0 ? (u.activeDates ?? []) : [],
+                portfolioBackgroundId: u.portfolioBackgroundId || 'bg-wave',
+              };
+            }
+            return u;
+          });
           this.isLoaded = true;
+          this.save();
           return;
         }
       }
@@ -856,6 +902,199 @@ class Database {
 
     this.save();
     return { success: true, addedCount, updatedCount, errors: [] };
+  }
+
+  // --- STAGES MANAGEMENT ---
+  public createStage(stageData: Partial<Stage>): Stage {
+    const newStage: Stage = {
+      id: `stage-${Date.now()}`,
+      title: (stageData.title || 'Giai đoạn mới').trim(),
+      description: (stageData.description || '').trim(),
+      order: stageData.order !== undefined ? Number(stageData.order) : this.data.stages.length + 1,
+      icon: stageData.icon || '🧭',
+      colorTheme: stageData.colorTheme || 'orange',
+      isPublished: stageData.isPublished !== undefined ? Boolean(stageData.isPublished) : true,
+      status: stageData.status || (stageData.isPublished ? 'published' : 'draft'),
+      startDate: stageData.startDate,
+      endDate: stageData.endDate,
+      leaderboardPublished: stageData.leaderboardPublished !== undefined ? Boolean(stageData.leaderboardPublished) : true,
+      quests: [],
+    };
+    this.data.stages.push(newStage);
+    this.save();
+    return newStage;
+  }
+
+  public updateStage(stageId: string, updates: Partial<Stage>): Stage | null {
+    const stage = this.data.stages.find((s) => s.id === stageId);
+    if (!stage) return null;
+    if (updates.title !== undefined) stage.title = updates.title.trim();
+    if (updates.description !== undefined) stage.description = updates.description.trim();
+    if (updates.order !== undefined) stage.order = Number(updates.order);
+    if (updates.icon !== undefined) stage.icon = updates.icon;
+    if (updates.colorTheme !== undefined) stage.colorTheme = updates.colorTheme;
+    if (updates.isPublished !== undefined) {
+      stage.isPublished = Boolean(updates.isPublished);
+      stage.status = stage.isPublished ? 'published' : 'draft';
+    }
+    if (updates.status !== undefined) {
+      stage.status = updates.status;
+      stage.isPublished = stage.status === 'published';
+    }
+    if (updates.startDate !== undefined) stage.startDate = updates.startDate;
+    if (updates.endDate !== undefined) stage.endDate = updates.endDate;
+    if (updates.leaderboardPublished !== undefined) stage.leaderboardPublished = Boolean(updates.leaderboardPublished);
+    this.save();
+    return stage;
+  }
+
+  public deleteStage(stageId: string): boolean {
+    const idx = this.data.stages.findIndex((s) => s.id === stageId);
+    if (idx === -1) return false;
+    this.data.stages.splice(idx, 1);
+    this.save();
+    return true;
+  }
+
+  // --- QUESTS MANAGEMENT ---
+  public createQuest(stageId: string, questData: Partial<Quest>): Quest | null {
+    const stage = this.data.stages.find((s) => s.id === stageId);
+    if (!stage) return null;
+    const newQuest: Quest = {
+      id: `quest-${Date.now()}`,
+      stageId,
+      title: (questData.title || 'Chặng mới').trim(),
+      summary: (questData.summary || '').trim(),
+      storyline: (questData.storyline || questData.summary || '').trim(),
+      order: questData.order !== undefined ? Number(questData.order) : stage.quests.length + 1,
+      xpReward: questData.xpReward !== undefined ? Number(questData.xpReward) : 100,
+      badgeReward: questData.badgeReward,
+      unlockType: (questData.unlockType as any) || 'code',
+      unlockCode: (questData.unlockCode || '').trim().toUpperCase(),
+      deadline: questData.deadline,
+      durationMinutes: questData.durationMinutes || 30,
+      maxAttempts: questData.maxAttempts || 3,
+      isDemoContent: false,
+      passThreshold: questData.passThreshold !== undefined ? Number(questData.passThreshold) : 50,
+      gradingRule: questData.gradingRule || 'proportional',
+      status: questData.status || 'published',
+      instructions: questData.instructions || '',
+      learningHub: questData.learningHub || {
+        theorySummary: '',
+        keyConcepts: [],
+        guidelines: [],
+        flashcards: [],
+      },
+      interactiveGame: questData.interactiveGame || {
+        type: 'multiple_choice',
+        instructions: 'Trả lời đúng các câu hỏi để hoàn thành chặng.',
+        questions: [],
+      },
+      recoveryConfig: questData.recoveryConfig || {
+        enabled: true,
+        title: 'Khôi phục quyền làm bài',
+        taskType: 'reflection',
+        instructions: 'Chia sẻ ngắn gọn điều bạn đã học được và cách bạn sẽ cải thiện kết quả ở lần tiếp theo.',
+        minPassingScore: 50,
+        extendedHours: 24,
+        maxRecoveryAttempts: 3,
+        requiresTeacherApproval: false,
+      },
+    };
+    stage.quests.push(newQuest);
+    this.save();
+    return newQuest;
+  }
+
+  public updateQuest(questId: string, updates: Partial<Quest>): Quest | null {
+    let targetQuest: Quest | null = null;
+    for (const stage of this.data.stages) {
+      const q = stage.quests.find((item) => item.id === questId);
+      if (q) {
+        targetQuest = q;
+        break;
+      }
+    }
+    if (!targetQuest) return null;
+
+    if (updates.title !== undefined) targetQuest.title = updates.title.trim();
+    if (updates.summary !== undefined) targetQuest.summary = updates.summary.trim();
+    if (updates.storyline !== undefined) targetQuest.storyline = updates.storyline.trim();
+    if (updates.order !== undefined) targetQuest.order = Number(updates.order);
+    if (updates.xpReward !== undefined) targetQuest.xpReward = Number(updates.xpReward);
+    if (updates.unlockCode !== undefined) targetQuest.unlockCode = updates.unlockCode.trim().toUpperCase();
+    if (updates.deadline !== undefined) targetQuest.deadline = updates.deadline;
+    if (updates.passThreshold !== undefined) targetQuest.passThreshold = Number(updates.passThreshold);
+    if (updates.gradingRule !== undefined) targetQuest.gradingRule = updates.gradingRule;
+    if (updates.status !== undefined) targetQuest.status = updates.status;
+    if (updates.instructions !== undefined) targetQuest.instructions = updates.instructions;
+    if (updates.badgeReward !== undefined) targetQuest.badgeReward = updates.badgeReward;
+    if (updates.learningHub !== undefined) targetQuest.learningHub = updates.learningHub;
+    if (updates.interactiveGame !== undefined) targetQuest.interactiveGame = updates.interactiveGame;
+
+    this.save();
+    return targetQuest;
+  }
+
+  public deleteQuest(questId: string): boolean {
+    for (const stage of this.data.stages) {
+      const idx = stage.quests.findIndex((item) => item.id === questId);
+      if (idx !== -1) {
+        stage.quests.splice(idx, 1);
+        this.save();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // --- PORTFOLIO BACKGROUNDS ---
+  public getBackgrounds(): PortfolioBackgroundItem[] {
+    return this.data.portfolioBackgrounds || DEFAULT_PORTFOLIO_BACKGROUNDS;
+  }
+
+  public createBackground(bg: Partial<PortfolioBackgroundItem>): PortfolioBackgroundItem {
+    if (!this.data.portfolioBackgrounds) {
+      this.data.portfolioBackgrounds = [...DEFAULT_PORTFOLIO_BACKGROUNDS];
+    }
+    const newBg: PortfolioBackgroundItem = {
+      id: `bg-${Date.now()}`,
+      name: bg.name?.trim() || 'Hình nền mới',
+      description: bg.description?.trim() || '',
+      url: bg.url?.trim() || '',
+      thumbnailUrl: bg.thumbnailUrl?.trim() || bg.url?.trim(),
+      isActive: bg.isActive !== undefined ? Boolean(bg.isActive) : true,
+      order: bg.order !== undefined ? Number(bg.order) : this.data.portfolioBackgrounds.length + 1,
+      createdAt: new Date().toISOString(),
+    };
+    this.data.portfolioBackgrounds.push(newBg);
+    this.save();
+    return newBg;
+  }
+
+  public updateBackground(id: string, updates: Partial<PortfolioBackgroundItem>): PortfolioBackgroundItem | null {
+    if (!this.data.portfolioBackgrounds) {
+      this.data.portfolioBackgrounds = [...DEFAULT_PORTFOLIO_BACKGROUNDS];
+    }
+    const bg = this.data.portfolioBackgrounds.find((b) => b.id === id);
+    if (!bg) return null;
+    if (updates.name !== undefined) bg.name = updates.name.trim();
+    if (updates.description !== undefined) bg.description = updates.description.trim();
+    if (updates.url !== undefined) bg.url = updates.url.trim();
+    if (updates.thumbnailUrl !== undefined) bg.thumbnailUrl = updates.thumbnailUrl.trim();
+    if (updates.isActive !== undefined) bg.isActive = Boolean(updates.isActive);
+    if (updates.order !== undefined) bg.order = Number(updates.order);
+    this.save();
+    return bg;
+  }
+
+  public deleteBackground(id: string): boolean {
+    if (!this.data.portfolioBackgrounds) return false;
+    const idx = this.data.portfolioBackgrounds.findIndex((b) => b.id === id);
+    if (idx === -1) return false;
+    this.data.portfolioBackgrounds.splice(idx, 1);
+    this.save();
+    return true;
   }
 }
 

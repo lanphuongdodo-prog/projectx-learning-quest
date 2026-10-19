@@ -135,7 +135,7 @@ export const LoginPage: React.FC = () => {
                     type="text"
                     value={studentName}
                     onChange={(e) => setStudentName(e.target.value)}
-                    placeholder="Ví dụ: Lê Văn Quốc An"
+                    placeholder="Ví dụ: Nguyễn Văn An"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 text-sm font-semibold outline-hidden"
                     required
                     autoFocus
@@ -153,7 +153,7 @@ export const LoginPage: React.FC = () => {
                     type="text"
                     value={studentId}
                     onChange={(e) => setStudentId(e.target.value)}
-                    placeholder="Ví dụ: FHG30070"
+                    placeholder="Ví dụ: FHG00010"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 text-sm font-mono font-bold uppercase outline-hidden"
                     required
                   />

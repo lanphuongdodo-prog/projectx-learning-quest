@@ -15,12 +15,16 @@ import {
 import { parseEvidenceUrl } from './src/utils/evidenceParser.ts';
 import { calculateLevelInfo, calculateQuestPass, calculateXpEarned } from './src/utils/gamification.ts';
 import { evaluateDeadline } from './src/utils/deadlineHelper.ts';
+import { calculateStreakAfterActivity } from './src/utils/streakHelper.ts';
 import {
   User,
+  Stage,
+  Quest,
   StudentProgress,
   EvidenceSubmission,
   TeacherFeedback,
   PortfolioData,
+  PortfolioBackgroundItem,
   NotificationItem,
   AttemptHistoryItem,
 } from './src/types/index.ts';
@@ -170,11 +174,19 @@ app.get('/api/stages', authMiddleware, (req: Request, res: Response) => {
 
   const userProgress = data.progress[user.id] || {};
 
-  // For students: strip secret unlockCodes and quiz answers!
-  const sanitizedStages = data.stages.map((stage) => {
+  // For students: only show published stages and published quests!
+  const visibleStages = isTeacher
+    ? data.stages
+    : data.stages.filter((s) => s.isPublished !== false && s.status !== 'draft');
+
+  const sanitizedStages = visibleStages.map((stage) => {
+    const visibleQuests = isTeacher
+      ? stage.quests
+      : stage.quests.filter((q) => q.status !== 'draft');
+
     return {
       ...stage,
-      quests: stage.quests.map((quest) => {
+      quests: visibleQuests.map((quest) => {
         const studentProgress: StudentProgress = userProgress[quest.id] || {
           questId: quest.id,
           unlocked: quest.unlockType === 'prerequisite' ? false : false,
@@ -528,6 +540,15 @@ app.post('/api/quests/:questId/submit', authMiddleware, (req: Request, res: Resp
   }
 
   data.progress[user.id][questId] = prog;
+
+  // Streak & Active Days Calculation (Only increments on real study action, max 1/day)
+  if (studentUser) {
+    const streakRes = calculateStreakAfterActivity(studentUser);
+    studentUser.streak = streakRes.currentStreak;
+    studentUser.totalActiveDays = streakRes.totalActiveDays;
+    studentUser.activeDates = streakRes.activeDates;
+  }
+
   db.save();
 
   res.json({
@@ -657,6 +678,14 @@ app.post('/api/flashcards/status', authMiddleware, (req: Request, res: Response)
     updatedAt: new Date().toISOString(),
   };
 
+  const studentUser = data.users.find((u) => u.id === user.id);
+  if (studentUser && studentUser.role === 'student') {
+    const streakRes = calculateStreakAfterActivity(studentUser);
+    studentUser.streak = streakRes.currentStreak;
+    studentUser.totalActiveDays = streakRes.totalActiveDays;
+    studentUser.activeDates = streakRes.activeDates;
+  }
+
   db.save();
   res.json({ success: true, progress: data.flashcardProgress[user.id] });
 });
@@ -724,6 +753,15 @@ app.post('/api/evidence', authMiddleware, (req: Request, res: Response) => {
   };
 
   data.evidence.push(newEvidence);
+
+  const studentUser = data.users.find((u) => u.id === user.id);
+  if (studentUser && studentUser.role === 'student') {
+    const streakRes = calculateStreakAfterActivity(studentUser);
+    studentUser.streak = streakRes.currentStreak;
+    studentUser.totalActiveDays = streakRes.totalActiveDays;
+    studentUser.activeDates = streakRes.activeDates;
+  }
+
   db.save();
 
   res.json({
@@ -867,25 +905,30 @@ app.get('/api/portfolio/:studentId', authMiddleware, (req: Request, res: Respons
 
   const portfolio = data.portfolios[studentId] || {
     studentId,
-    template: 'journey',
+    backgroundId: student.portfolioBackgroundId || 'bg-wave',
     colorTheme: 'orange',
-    bio: 'Học sinh lớp 10A FPT Hậu Giang, hào hứng chinh phục hành trình Project X.',
-    motto: 'Học qua trải nghiệm - Sáng tạo vì cộng đồng!',
+    bio: '',
+    motto: '',
     selectedBadges: [],
     selectedEvidences: [],
     reflectionNotes: {
+      nhanThuc: '',
+      hanhVi: '',
+      cachHoc: '',
       learned: '',
       challenges: '',
       proudest: '',
       futureGoal: '',
     },
-    stickers: [],
     updatedAt: new Date().toISOString(),
   };
 
   const studentProgress = data.progress[studentId] || {};
   const studentEvidences = data.evidence.filter((e) => e.studentId === studentId);
   const studentFeedbacks = data.feedback.filter((f) => f.studentId === studentId && !f.isDraft);
+  const allBackgrounds = db.getBackgrounds();
+  const activeBgId = student.portfolioBackgroundId || portfolio.backgroundId || 'bg-wave';
+  const selectedBackground = allBackgrounds.find((b) => b.id === activeBgId) || allBackgrounds[0];
 
   res.json({
     student,
@@ -894,6 +937,8 @@ app.get('/api/portfolio/:studentId', authMiddleware, (req: Request, res: Respons
     evidence: studentEvidences,
     feedback: studentFeedbacks,
     stages: data.stages,
+    backgrounds: user.role === 'teacher' ? allBackgrounds : allBackgrounds.filter((b) => b.isActive !== false),
+    selectedBackground,
   });
 });
 
@@ -905,24 +950,31 @@ app.put('/api/portfolio', authMiddleware, (req: Request, res: Response) => {
     return;
   }
 
-  const { template, colorTheme, bio, motto, selectedBadges, selectedEvidences, reflectionNotes, stickers } = req.body;
+  const { backgroundId, colorTheme, bio, motto, selectedBadges, selectedEvidences, reflectionNotes } = req.body;
   const data = db.getData();
+
+  const studentUser = data.users.find((u) => u.id === user.id);
+  if (studentUser && backgroundId) {
+    studentUser.portfolioBackgroundId = backgroundId;
+  }
 
   const current: PortfolioData = {
     studentId: user.id,
-    template: template || 'journey',
+    backgroundId: backgroundId || studentUser?.portfolioBackgroundId || 'bg-wave',
     colorTheme: colorTheme || 'orange',
     bio: (bio || '').trim(),
     motto: (motto || '').trim(),
     selectedBadges: selectedBadges || [],
     selectedEvidences: selectedEvidences || [],
-    reflectionNotes: reflectionNotes || {
-      learned: '',
-      challenges: '',
-      proudest: '',
-      futureGoal: '',
+    reflectionNotes: {
+      nhanThuc: reflectionNotes?.nhanThuc || '',
+      hanhVi: reflectionNotes?.hanhVi || '',
+      cachHoc: reflectionNotes?.cachHoc || '',
+      learned: reflectionNotes?.learned || reflectionNotes?.nhanThuc || '',
+      challenges: reflectionNotes?.challenges || reflectionNotes?.hanhVi || '',
+      proudest: reflectionNotes?.proudest || reflectionNotes?.cachHoc || '',
+      futureGoal: reflectionNotes?.futureGoal || '',
     },
-    stickers: stickers || [],
     updatedAt: new Date().toISOString(),
   };
 
@@ -930,6 +982,52 @@ app.put('/api/portfolio', authMiddleware, (req: Request, res: Response) => {
   db.save();
 
   res.json({ success: true, portfolio: current });
+});
+
+// -------------------------------------------------------------
+// 6.1 PORTFOLIO BACKGROUNDS (LIBRARY MANAGED BY TEACHERS)
+// -------------------------------------------------------------
+
+// GET /api/portfolio/backgrounds
+app.get('/api/portfolio/backgrounds', authMiddleware, (req: Request, res: Response) => {
+  const user: User = (req as any).user;
+  const isTeacher = user.role === 'teacher';
+  const allBgs = db.getBackgrounds();
+  const list = isTeacher ? allBgs : allBgs.filter((b) => b.isActive !== false);
+  res.json({ backgrounds: list });
+});
+
+// POST /api/teacher/portfolio/backgrounds
+app.post('/api/teacher/portfolio/backgrounds', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { name, description, url, thumbnailUrl, isActive, order } = req.body;
+  if (!name || !url) {
+    res.status(400).json({ error: 'Vui lòng cung cấp tên hình nền và đường dẫn hình ảnh / gradient.' });
+    return;
+  }
+  const bg = db.createBackground({ name, description, url, thumbnailUrl, isActive, order });
+  res.json({ success: true, background: bg });
+});
+
+// PUT /api/teacher/portfolio/backgrounds/:id
+app.put('/api/teacher/portfolio/backgrounds/:id', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const bg = db.updateBackground(id, req.body);
+  if (!bg) {
+    res.status(404).json({ error: 'Không tìm thấy hình nền này.' });
+    return;
+  }
+  res.json({ success: true, background: bg });
+});
+
+// DELETE /api/teacher/portfolio/backgrounds/:id
+app.delete('/api/teacher/portfolio/backgrounds/:id', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const deleted = db.deleteBackground(id);
+  if (!deleted) {
+    res.status(404).json({ error: 'Không tìm thấy hình nền này để xóa.' });
+    return;
+  }
+  res.json({ success: true, message: 'Đã xóa hình nền thành công.' });
 });
 
 // -------------------------------------------------------------
@@ -1050,36 +1148,96 @@ app.get('/api/teacher/students', authMiddleware, teacherOnly, (req: Request, res
   res.json({ students: detailed });
 });
 
-// POST /api/teacher/quests/:questId - edit quest unlock code, deadline, questions, XP and grading rules
+// POST /api/teacher/stages - create a new stage/phase
+app.post('/api/teacher/stages', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { title, description, order, icon, colorTheme, isPublished, status, startDate, endDate } = req.body;
+  if (!title) {
+    res.status(400).json({ error: 'Vui lòng nhập tên giai đoạn.' });
+    return;
+  }
+  const stage = db.createStage({ title, description, order, icon, colorTheme, isPublished, status, startDate, endDate });
+  res.json({ success: true, stage });
+});
+
+// PUT /api/teacher/stages/:stageId - update stage
+app.put('/api/teacher/stages/:stageId', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { stageId } = req.params;
+  const stage = db.updateStage(stageId, req.body);
+  if (!stage) {
+    res.status(404).json({ error: 'Không tìm thấy giai đoạn này.' });
+    return;
+  }
+  res.json({ success: true, stage });
+});
+
+// DELETE /api/teacher/stages/:stageId - delete stage
+app.delete('/api/teacher/stages/:stageId', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { stageId } = req.params;
+  const deleted = db.deleteStage(stageId);
+  if (!deleted) {
+    res.status(404).json({ error: 'Không tìm thấy giai đoạn này để xóa.' });
+    return;
+  }
+  res.json({ success: true, message: 'Đã xóa giai đoạn thành công.' });
+});
+
+// POST /api/teacher/stages/:stageId/quests - create a new quest in stage
+app.post('/api/teacher/stages/:stageId/quests', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { stageId } = req.params;
+  const { title, summary, storyline, order, xpReward, unlockCode, deadline, passThreshold, gradingRule, status } = req.body;
+  if (!title) {
+    res.status(400).json({ error: 'Vui lòng nhập tên chặng.' });
+    return;
+  }
+  const quest = db.createQuest(stageId, {
+    title,
+    summary,
+    storyline,
+    order,
+    xpReward,
+    unlockCode,
+    deadline,
+    passThreshold,
+    gradingRule,
+    status,
+  });
+  if (!quest) {
+    res.status(404).json({ error: 'Không tìm thấy giai đoạn để tạo chặng.' });
+    return;
+  }
+  res.json({ success: true, quest });
+});
+
+// POST or PUT /api/teacher/quests/:questId - edit quest
 app.post('/api/teacher/quests/:questId', authMiddleware, teacherOnly, (req: Request, res: Response) => {
   const { questId } = req.params;
-  const { unlockCode, deadline, title, summary, xpReward, passThreshold, gradingRule } = req.body;
-  const data = db.getData();
-
-  let foundQuest: any = null;
-  for (const stage of data.stages) {
-    const q = stage.quests.find((item) => item.id === questId);
-    if (q) {
-      foundQuest = q;
-      break;
-    }
-  }
-
-  if (!foundQuest) {
+  const quest = db.updateQuest(questId, req.body);
+  if (!quest) {
     res.status(404).json({ error: 'Không tìm thấy chặng này.' });
     return;
   }
+  res.json({ success: true, quest });
+});
 
-  if (unlockCode !== undefined) foundQuest.unlockCode = unlockCode.trim().toUpperCase();
-  if (deadline !== undefined) foundQuest.deadline = deadline;
-  if (title !== undefined) foundQuest.title = title.trim();
-  if (summary !== undefined) foundQuest.summary = summary.trim();
-  if (xpReward !== undefined) foundQuest.xpReward = Number(xpReward);
-  if (passThreshold !== undefined) foundQuest.passThreshold = Number(passThreshold);
-  if (gradingRule !== undefined) foundQuest.gradingRule = gradingRule;
+app.put('/api/teacher/quests/:questId', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { questId } = req.params;
+  const quest = db.updateQuest(questId, req.body);
+  if (!quest) {
+    res.status(404).json({ error: 'Không tìm thấy chặng này.' });
+    return;
+  }
+  res.json({ success: true, quest });
+});
 
-  db.save();
-  res.json({ success: true, quest: foundQuest });
+// DELETE /api/teacher/quests/:questId - delete quest
+app.delete('/api/teacher/quests/:questId', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { questId } = req.params;
+  const deleted = db.deleteQuest(questId);
+  if (!deleted) {
+    res.status(404).json({ error: 'Không tìm thấy chặng này để xóa.' });
+    return;
+  }
+  res.json({ success: true, message: 'Đã xóa chặng thành công.' });
 });
 
 // POST /api/teacher/change-password

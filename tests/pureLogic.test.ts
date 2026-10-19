@@ -15,6 +15,7 @@ import {
   calculateXpEarned,
 } from '../src/utils/gamification.ts';
 import { evaluateDeadline } from '../src/utils/deadlineHelper.ts';
+import { calculateStreakAfterActivity } from '../src/utils/streakHelper.ts';
 
 test('Student Name & MSHS Normalization and Auth Matching', () => {
   // Whitespace and case normalization
@@ -154,3 +155,43 @@ test('Student MSHS preserves leading zeros and rejects empty fields', () => {
   assert.equal(isStudentAuthMatch('Nguyễn Văn A', '00123', 'Nguyễn Văn A', '00123'), true);
   assert.equal(isStudentAuthMatch('Nguyễn Văn A', '123', 'Nguyễn Văn A', '00123'), false); // Leading zero mismatch rejected
 });
+
+test('calculateStreakAfterActivity - enforces daily streak, prevents multi-increment, and resets on skipped days', () => {
+  // Initial user: streak 0, totalActiveDays 0, activeDates []
+  let user: { streak?: number; totalActiveDays?: number; activeDates?: string[] } = {
+    streak: 0,
+    totalActiveDays: 0,
+    activeDates: [],
+  };
+
+  // Day 1: 2026-10-18 -> streak becomes 1, totalActiveDays 1
+  let res = calculateStreakAfterActivity(user, '2026-10-18');
+  assert.equal(res.currentStreak, 1);
+  assert.equal(res.totalActiveDays, 1);
+  assert.equal(res.isNewActiveDay, true);
+  assert.equal(res.streakIncremented, true);
+  user = { streak: res.currentStreak, totalActiveDays: res.totalActiveDays, activeDates: res.activeDates };
+
+  // Second activity on Day 1: streak must NOT increment again
+  res = calculateStreakAfterActivity(user, '2026-10-18');
+  assert.equal(res.currentStreak, 1);
+  assert.equal(res.totalActiveDays, 1);
+  assert.equal(res.isNewActiveDay, false);
+  assert.equal(res.streakIncremented, false);
+
+  // Day 2 (Consecutive: 2026-10-19) -> streak becomes 2, totalActiveDays 2
+  res = calculateStreakAfterActivity(user, '2026-10-19');
+  assert.equal(res.currentStreak, 2);
+  assert.equal(res.totalActiveDays, 2);
+  assert.equal(res.isNewActiveDay, true);
+  assert.equal(res.streakIncremented, true);
+  user = { streak: res.currentStreak, totalActiveDays: res.totalActiveDays, activeDates: res.activeDates };
+
+  // Skipped day 2026-10-20, next activity on 2026-10-21 -> streak resets to 1, totalActiveDays 3
+  res = calculateStreakAfterActivity(user, '2026-10-21');
+  assert.equal(res.currentStreak, 1);
+  assert.equal(res.totalActiveDays, 3);
+  assert.equal(res.isNewActiveDay, true);
+  assert.equal(res.streakIncremented, true);
+});
+

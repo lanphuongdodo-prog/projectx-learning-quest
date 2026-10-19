@@ -191,11 +191,64 @@ export const api = {
     return request<{ students: any[] }>('/api/teacher/students');
   },
 
+  // Stages & Quests Management
+  async createStage(payload: any): Promise<any> {
+    return request('/api/teacher/stages', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateStage(stageId: string, payload: any): Promise<any> {
+    return request(`/api/teacher/stages/${stageId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteStage(stageId: string): Promise<any> {
+    return request(`/api/teacher/stages/${stageId}`, { method: 'DELETE' });
+  },
+
+  async createQuest(stageId: string, payload: any): Promise<any> {
+    return request(`/api/teacher/stages/${stageId}/quests`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   async updateTeacherQuest(questId: string, payload: any): Promise<any> {
     return request(`/api/teacher/quests/${questId}`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  async deleteQuest(questId: string): Promise<any> {
+    return request(`/api/teacher/quests/${questId}`, { method: 'DELETE' });
+  },
+
+  // Portfolio Backgrounds
+  async getBackgrounds(): Promise<{ backgrounds: any[] }> {
+    return request<{ backgrounds: any[] }>('/api/portfolio/backgrounds');
+  },
+
+  async createBackground(payload: any): Promise<any> {
+    return request('/api/teacher/portfolio/backgrounds', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateBackground(id: string, payload: any): Promise<any> {
+    return request(`/api/teacher/portfolio/backgrounds/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteBackground(id: string): Promise<any> {
+    return request(`/api/teacher/portfolio/backgrounds/${id}`, { method: 'DELETE' });
   },
 
   async changeTeacherPassword(payload: { oldPassword: string; newPassword: string }): Promise<any> {

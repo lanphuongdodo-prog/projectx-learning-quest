@@ -14,6 +14,9 @@ export interface User {
   xp?: number;
   level?: number;
   streak?: number;
+  totalActiveDays?: number;
+  activeDates?: string[]; // array of YYYY-MM-DD
+  portfolioBackgroundId?: string;
   // Teacher specific
   username?: string;
   passwordHash?: string;
@@ -150,6 +153,8 @@ export interface Quest {
   recoveryConfig: RecoveryConfig;
   passThreshold?: number; // e.g. 50 (meaning > 50%), 60, 70
   gradingRule?: 'proportional' | 'full_on_pass';
+  status?: 'draft' | 'published';
+  instructions?: string;
 }
 
 export interface Stage {
@@ -160,6 +165,9 @@ export interface Stage {
   icon: string;
   colorTheme: string;
   isPublished: boolean;
+  status?: 'draft' | 'published' | 'archived';
+  startDate?: string;
+  endDate?: string;
   leaderboardPublished: boolean;
   quests: Quest[];
 }
@@ -234,21 +242,37 @@ export interface StickerPlacement {
   rotation: number;
 }
 
+export interface PortfolioBackgroundItem {
+  id: string;
+  name: string;
+  description?: string;
+  url: string; // image URL or CSS background string
+  thumbnailUrl?: string;
+  isActive: boolean;
+  order: number;
+  createdAt?: string;
+}
+
 export interface PortfolioData {
   studentId: string;
-  template: 'journey' | 'creative' | 'quest' | 'growth' | 'story';
-  colorTheme: string;
-  bio: string;
-  motto: string;
-  selectedBadges: string[];
-  selectedEvidences: string[];
+  backgroundId?: string;
+  themeBackground?: string; // resolved background url/style
+  colorTheme?: string;
+  bio?: string;
+  motto?: string;
+  selectedBadges?: string[];
+  selectedEvidences?: string[];
   reflectionNotes: {
-    learned: string;
-    challenges: string;
-    proudest: string;
-    futureGoal: string;
+    // 3 Required Prompts for Dấu ấn cá nhân & phản tư:
+    nhanThuc?: string; // NHẬN THỨC — em HIỂU điều gì hơn về mình & về thay đổi?
+    hanhVi?: string;   // HÀNH VI — em LÀM gì khác so với trước?
+    cachHoc?: string;  // CÁCH HỌC — em HỌC / em thay đổi bản thân thế nào?
+    // Backward compatibility
+    learned?: string;
+    challenges?: string;
+    proudest?: string;
+    futureGoal?: string;
   };
-  stickers: StickerPlacement[];
   updatedAt: string;
 }
 
