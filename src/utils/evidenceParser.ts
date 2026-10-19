@@ -1,5 +1,4 @@
-// Project X | Learning Quest - Evidence Link Parser & Preview Engine
-
+// Project X | Learning Quest - Evidence Link Parser & Inline Preview Engine
 export type EvidencePlatformType =
   | 'google_docs'
   | 'google_sheets'
@@ -65,7 +64,7 @@ export function parseEvidenceUrl(rawUrl: string): ParsedEvidence {
   const hostname = parsed.hostname.toLowerCase();
   const pathname = parsed.pathname;
 
-  // 1. Google Docs
+  // 1. Google Docs (/edit or /view -> /preview)
   if (hostname.includes('docs.google.com') && pathname.includes('/document/')) {
     const docIdMatch = pathname.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
     if (docIdMatch) {
@@ -82,7 +81,7 @@ export function parseEvidenceUrl(rawUrl: string): ParsedEvidence {
     }
   }
 
-  // 2. Google Sheets
+  // 2. Google Sheets (/edit or /view -> /preview)
   if (hostname.includes('docs.google.com') && pathname.includes('/spreadsheets/')) {
     const sheetIdMatch = pathname.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
     if (sheetIdMatch) {
@@ -99,7 +98,7 @@ export function parseEvidenceUrl(rawUrl: string): ParsedEvidence {
     }
   }
 
-  // 3. Google Slides
+  // 3. Google Slides (/edit or /view -> /preview)
   if (hostname.includes('docs.google.com') && pathname.includes('/presentation/')) {
     const slideIdMatch = pathname.match(/\/presentation\/d\/([a-zA-Z0-9_-]+)/);
     if (slideIdMatch) {
@@ -108,15 +107,15 @@ export function parseEvidenceUrl(rawUrl: string): ParsedEvidence {
         isValid: true,
         type: 'google_slides',
         titleSuggestion: 'Bài thuyết trình Google Slides - Slide Báo cáo',
-        embedUrl: `https://docs.google.com/presentation/d/${slideId}/embed?start=false&loop=false&delayms=3000`,
+        embedUrl: `https://docs.google.com/presentation/d/${slideId}/preview`,
         canEmbed: true,
         requiresExternalOpen: false,
-        warningNote: 'Bài thuyết trình sẵn sàng trình chiếu trực tiếp trên hệ thống.',
+        warningNote: 'Bài thuyết trình sẵn sàng xem trực tiếp trên khung xem trước.',
       };
     }
   }
 
-  // 4. Google Drive Generic File / Folder / Video
+  // 4. Google Drive Generic File (PDF, Video, Docs, Images) /file/d/{id}/view -> /preview
   if (hostname.includes('drive.google.com')) {
     const fileIdMatch = pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || parsed.searchParams.get('id');
     const fileId = Array.isArray(fileIdMatch) ? fileIdMatch[1] : fileIdMatch;
@@ -124,11 +123,11 @@ export function parseEvidenceUrl(rawUrl: string): ParsedEvidence {
       return {
         isValid: true,
         type: 'google_drive',
-        titleSuggestion: 'Tập tin lưu trữ Google Drive',
+        titleSuggestion: 'Tập tin lưu trữ Google Drive (PDF / Tài liệu / Video)',
         embedUrl: `https://drive.google.com/file/d/${fileId}/preview`,
         canEmbed: true,
         requiresExternalOpen: false,
-        warningNote: 'Tập tin Google Drive sẽ hiển thị ở khung xem trước (yêu cầu quyền chia sẻ công khai hoặc trong trường học).',
+        warningNote: 'Tập tin Google Drive nhúng trực tiếp qua /preview (yêu cầu quyền xem cho người có liên kết).',
       };
     }
 

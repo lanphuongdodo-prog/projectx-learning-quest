@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { EvidenceSubmission, EvidenceRequirement } from '../types/index.ts';
 import { parseEvidenceUrl, ParsedEvidence } from '../utils/evidenceParser.ts';
 import { api } from '../services/api.ts';
+import { EvidenceCard } from './EvidenceCard.tsx';
 import {
   Link as LinkIcon,
   ExternalLink,
@@ -258,77 +259,9 @@ export const EvidenceSection: React.FC<EvidenceSectionProps> = ({ questId, requi
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {evidenceList.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs space-y-3"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center shrink-0">
-                      {getPlatformIcon(item.detectedType)}
-                    </div>
-                    <div>
-                      <h5 className="text-sm font-bold text-slate-900">{item.title}</h5>
-                      <p className="text-[11px] text-slate-500">
-                        Nộp lúc: {new Date(item.submittedAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Status Badge */}
-                  <div>
-                    {item.status === 'approved' && (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Đã duyệt đạt {item.teacherScore ? `(${item.teacherScore}đ)` : ''}</span>
-                      </span>
-                    )}
-                    {item.status === 'needs_revision' && (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800">
-                        <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Cần chỉnh sửa</span>
-                      </span>
-                    )}
-                    {item.status === 'submitted' && (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-sky-100 text-sky-800">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
-                        <span>Đã gửi - Đang chờ GV duyệt</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {item.description && (
-                  <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl">
-                    {item.description}
-                  </p>
-                )}
-
-                {/* Teacher review feedback if available */}
-                {item.teacherFeedback && (
-                  <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-xs">
-                    <span className="font-extrabold text-orange-900 block mb-0.5">
-                      💬 Nhận xét của Cô Đỗ Lan Phương:
-                    </span>
-                    <p className="text-slate-700">{item.teacherFeedback}</p>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
-                  <span className="text-[11px] text-slate-400 truncate max-w-xs">{item.url}</span>
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-bold text-orange-600 hover:text-orange-700 ml-2"
-                  >
-                    <span>Mở sản phẩm</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-              </div>
+              <EvidenceCard key={item.id} evidence={item} />
             ))}
           </div>
         )}

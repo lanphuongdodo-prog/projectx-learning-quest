@@ -264,10 +264,10 @@ export const InteractiveGameRunner: React.FC<InteractiveGameRunnerProps> = ({
         <div className="pt-2 flex justify-center gap-3">
           <button
             onClick={() => setSubmissionResult(null)}
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition"
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl border border-orange-300 bg-orange-50/60 text-orange-800 text-xs font-bold hover:bg-orange-100 transition shadow-xs"
           >
-            <RotateCcw className="w-4 h-4" />
-            <span>Làm lại thử thách</span>
+            <RotateCcw className="w-4 h-4 text-orange-600" />
+            <span>{isPassed || isCompleted ? 'Làm lại để cải thiện điểm' : 'Làm lại thử thách'}</span>
           </button>
         </div>
       </div>
@@ -284,6 +284,21 @@ export const InteractiveGameRunner: React.FC<InteractiveGameRunnerProps> = ({
 
   return (
     <div className="rounded-3xl bg-white border border-amber-200/90 shadow-md p-6 sm:p-8 space-y-6">
+      {/* Retrying Banner if already completed */}
+      {isCompleted && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-600 font-black">✓ Đã vượt chặng:</span>
+            <span className="text-emerald-800">
+              Bạn đang làm lại để cải thiện điểm. Kết quả cao hơn sẽ được tự động cập nhật vào kỷ lục cá nhân!
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded-md bg-emerald-200 text-emerald-900 font-extrabold text-[10px] uppercase shrink-0">
+            Bảo lưu kết quả
+          </span>
+        </div>
+      )}
+
       {/* Game Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
         <div>

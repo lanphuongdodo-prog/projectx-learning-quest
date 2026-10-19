@@ -141,6 +141,26 @@ export const QuestDetail: React.FC<QuestDetailProps> = ({ questId, onBackToMap, 
             <span>Huy hiệu hoàn thành: {quest.badgeReward.name} - {quest.badgeReward.description}</span>
           </div>
         )}
+
+        {isCompleted && (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs mt-2">
+            <div className="flex items-center gap-2.5">
+              <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black text-xs shrink-0">✓</span>
+              <div>
+                <span className="font-extrabold text-emerald-900 block">Bạn đã hoàn thành chặng này!</span>
+                <span className="text-emerald-700 text-[11px]">
+                  Điểm kỷ lục: {userProgress?.highestScore || userProgress?.score || 100}% • Điểm thưởng: +{userProgress?.highestXp || userProgress?.xpEarned || quest.xpReward} XP
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveTab('game')}
+              className="px-3.5 py-1.5 rounded-xl bg-white border border-emerald-300 text-emerald-800 font-extrabold hover:bg-emerald-100 transition shadow-2xs text-[11px]"
+            >
+              Làm lại để cải thiện điểm
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 3 Main Tabs Navigation */}

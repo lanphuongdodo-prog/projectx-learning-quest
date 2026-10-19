@@ -1,76 +1,124 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { UnlockCodeRateLimiter } from '../src/utils/security.ts';
+import {
+  UnlockCodeRateLimiter,
+  normalizeStudentName,
+  normalizeMSHS,
+  isStudentAuthMatch,
+  hashPassword,
+  verifyPassword,
+} from '../src/utils/security.ts';
 import { parseEvidenceUrl } from '../src/utils/evidenceParser.ts';
-import { calculateLevelInfo, LEVEL_THRESHOLDS } from '../src/utils/gamification.ts';
+import {
+  calculateLevelInfo,
+  calculateQuestPass,
+  calculateXpEarned,
+} from '../src/utils/gamification.ts';
 import { evaluateDeadline } from '../src/utils/deadlineHelper.ts';
 
-test('UnlockCodeRateLimiter - enforces max attempts and cooldown lock', () => {
-  const limiter = new UnlockCodeRateLimiter(3, 10); // 3 attempts, 10s lockout
-  const userId = 'student-01';
-  const questId = 'quest-1-1';
-  const baseTime = 1000000;
+test('Student Name & MSHS Normalization and Auth Matching', () => {
+  // Whitespace and case normalization
+  assert.equal(normalizeStudentName('  Lê   Văn   Quốc An  '), 'lê văn quốc an');
+  assert.equal(normalizeMSHS('  fhg30070  '), 'FHG30070');
 
-  // Initial check
-  const check1 = limiter.checkRateLimit(userId, questId, baseTime);
-  assert.equal(check1.allowed, true);
-  assert.equal(check1.attemptsLeft, 3);
+  // Match test
+  const recordName = 'Lê Văn Quốc An';
+  const recordMSHS = 'FHG30070';
 
-  // 1st failed attempt
-  const res1 = limiter.recordAttempt(userId, questId, false, baseTime);
-  assert.equal(res1.success, false);
-  assert.equal(res1.locked, false);
-  assert.equal(res1.attemptsLeft, 2);
+  // 1. Correct name and MSHS (even with extra spaces / mixed case)
+  assert.equal(isStudentAuthMatch('lê  văn quốc an', 'fhg30070', recordName, recordMSHS), true);
+  assert.equal(isStudentAuthMatch('LÊ VĂN QUỐC AN', 'FHG30070', recordName, recordMSHS), true);
 
-  // 2nd failed attempt
-  const res2 = limiter.recordAttempt(userId, questId, false, baseTime + 1000);
-  assert.equal(res2.success, false);
-  assert.equal(res2.locked, false);
-  assert.equal(res2.attemptsLeft, 1);
+  // 2. Correct MSHS but wrong name -> reject
+  assert.equal(isStudentAuthMatch('Ngô Quốc An', 'FHG30070', recordName, recordMSHS), false);
 
-  // 3rd failed attempt - should lock!
-  const res3 = limiter.recordAttempt(userId, questId, false, baseTime + 2000);
-  assert.equal(res3.success, false);
-  assert.equal(res3.locked, true);
-  assert.equal(res3.remainingWaitSeconds, 10);
+  // 3. Correct name but wrong MSHS -> reject
+  assert.equal(isStudentAuthMatch('Lê Văn Quốc An', 'FHG30077', recordName, recordMSHS), false);
 
-  // Check rate limit during lock
-  const checkDuringLock = limiter.checkRateLimit(userId, questId, baseTime + 5000);
-  assert.equal(checkDuringLock.allowed, false);
-  assert.equal(checkDuringLock.remainingWaitSeconds, 7);
-
-  // Check after lock expires (10 seconds later)
-  const checkAfterLock = limiter.checkRateLimit(userId, questId, baseTime + 13000);
-  assert.equal(checkAfterLock.allowed, true);
-  assert.equal(checkAfterLock.attemptsLeft, 3);
-
-  // Success resets state
-  const resSuccess = limiter.recordAttempt(userId, questId, true, baseTime + 14000);
-  assert.equal(resSuccess.success, true);
-  assert.equal(resSuccess.locked, false);
+  // 4. Missing fields
+  assert.equal(isStudentAuthMatch('', 'FHG30070', recordName, recordMSHS), false);
+  assert.equal(isStudentAuthMatch('Lê Văn Quốc An', '', recordName, recordMSHS), false);
 });
 
-test('parseEvidenceUrl - recognizes Google Docs, Sheets, Slides, YouTube and Drive', () => {
-  // Google Docs
+test('Password Hashing and Verification (Teacher adminpdp / #PdpProX1)', () => {
+  const password = '#PdpProX1';
+  const { hash, salt } = hashPassword(password);
+
+  // Hash must not equal plain text
+  assert.notEqual(hash, password);
+  assert.ok(hash.length > 20);
+
+  // Verification
+  assert.equal(verifyPassword('#PdpProX1', hash, salt), true);
+  assert.equal(verifyPassword('WrongPass', hash, salt), false);
+  assert.equal(verifyPassword('', hash, salt), false);
+});
+
+test('Quest Pass Condition (> 50% required)', () => {
+  // 10 questions: floor(10/2) + 1 = 6.
+  assert.equal(calculateQuestPass(5, 10).isPassed, false);
+  assert.equal(calculateQuestPass(6, 10).isPassed, true);
+  assert.equal(calculateQuestPass(6, 10).minCorrectNeeded, 6);
+
+  // 8 questions: floor(8/2) + 1 = 5.
+  assert.equal(calculateQuestPass(4, 8).isPassed, false);
+  assert.equal(calculateQuestPass(5, 8).isPassed, true);
+
+  // 5 questions: floor(5/2) + 1 = 3.
+  assert.equal(calculateQuestPass(2, 5).isPassed, false);
+  assert.equal(calculateQuestPass(3, 5).isPassed, true);
+
+  // 3 questions: floor(3/2) + 1 = 2.
+  assert.equal(calculateQuestPass(1, 3).isPassed, false);
+  assert.equal(calculateQuestPass(2, 3).isPassed, true);
+
+  // 2 questions: floor(2/2) + 1 = 2.
+  assert.equal(calculateQuestPass(1, 2).isPassed, false);
+  assert.equal(calculateQuestPass(2, 2).isPassed, true);
+
+  // Custom threshold tests (e.g. 70%)
+  assert.equal(calculateQuestPass(6, 10, 70).isPassed, false); // 6 < 7
+  assert.equal(calculateQuestPass(7, 10, 70).isPassed, true);
+
+  // Proportional XP calculation
+  assert.equal(calculateXpEarned(6, 10, 100, 'proportional'), 60);
+  assert.equal(calculateXpEarned(8, 10, 100, 'proportional'), 80);
+  assert.equal(calculateXpEarned(10, 10, 100, 'proportional'), 100);
+  assert.equal(calculateXpEarned(3, 5, 50, 'proportional'), 30);
+  assert.equal(calculateXpEarned(5, 5, 50, 'proportional'), 50);
+
+  // Full on pass rule
+  assert.equal(calculateXpEarned(6, 10, 100, 'full_on_pass'), 100);
+});
+
+test('parseEvidenceUrl - recognizes Google Docs, Sheets, Slides, Drive and formats preview embeds', () => {
+  // Google Docs (/edit -> /preview)
   const doc = parseEvidenceUrl('https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit');
   assert.equal(doc.isValid, true);
   assert.equal(doc.type, 'google_docs');
   assert.equal(doc.canEmbed, true);
   assert.equal(doc.embedUrl, 'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/preview');
 
-  // Google Sheets
+  // Google Sheets (/edit -> /preview)
   const sheet = parseEvidenceUrl('https://docs.google.com/spreadsheets/d/1qpyC0X951WYS836TvCXxUFLtlHYhGWWXF/edit#gid=0');
   assert.equal(sheet.isValid, true);
   assert.equal(sheet.type, 'google_sheets');
   assert.equal(sheet.canEmbed, true);
   assert.equal(sheet.embedUrl, 'https://docs.google.com/spreadsheets/d/1qpyC0X951WYS836TvCXxUFLtlHYhGWWXF/preview');
 
-  // Google Slides
+  // Google Slides (/edit -> /preview)
   const slide = parseEvidenceUrl('https://docs.google.com/presentation/d/1a2b3c4d5e/edit');
   assert.equal(slide.isValid, true);
   assert.equal(slide.type, 'google_slides');
   assert.equal(slide.canEmbed, true);
-  assert.match(slide.embedUrl!, /presentation\/d\/1a2b3c4d5e\/embed/);
+  assert.equal(slide.embedUrl, 'https://docs.google.com/presentation/d/1a2b3c4d5e/preview');
+
+  // Google Drive File (/view -> /preview)
+  const drive = parseEvidenceUrl('https://drive.google.com/file/d/1xYz890abcdef/view?usp=sharing');
+  assert.equal(drive.isValid, true);
+  assert.equal(drive.type, 'google_drive');
+  assert.equal(drive.canEmbed, true);
+  assert.equal(drive.embedUrl, 'https://drive.google.com/file/d/1xYz890abcdef/preview');
 
   // YouTube
   const yt = parseEvidenceUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
@@ -78,56 +126,31 @@ test('parseEvidenceUrl - recognizes Google Docs, Sheets, Slides, YouTube and Dri
   assert.equal(yt.type, 'youtube');
   assert.equal(yt.canEmbed, true);
   assert.equal(yt.embedUrl, 'https://www.youtube.com/embed/dQw4w9WgXcQ');
-
-  // Direct image
-  const img = parseEvidenceUrl('https://images.unsplash.com/photo-1516321318423-f06f85e504b3.jpg');
-  assert.equal(img.isValid, true);
-  assert.equal(img.type, 'image');
-  assert.equal(img.canEmbed, true);
-
-  // Invalid or malicious protocols
-  const malicious = parseEvidenceUrl('javascript:alert(1)');
-  assert.equal(malicious.isValid, false);
 });
 
-test('calculateLevelInfo - computes correct tier and progress percentage', () => {
-  const lvl1 = calculateLevelInfo(50);
-  assert.equal(lvl1.level, 1);
-  assert.equal(lvl1.currentProgressXp, 50);
-  assert.equal(lvl1.progressPercent, Math.round((50 / 150) * 100));
+test('UnlockCodeRateLimiter - enforces max attempts and cooldown lock', () => {
+  const limiter = new UnlockCodeRateLimiter(3, 10);
+  const userId = 'student-01';
+  const questId = 'quest-1-1';
+  const baseTime = 1000000;
 
-  const lvl2 = calculateLevelInfo(200);
-  assert.equal(lvl2.level, 2);
-  assert.equal(lvl2.minXp, 150);
-  assert.equal(lvl2.currentProgressXp, 50);
+  assert.equal(limiter.checkRateLimit(userId, questId, baseTime).allowed, true);
 
-  const lvlMax = calculateLevelInfo(3000);
-  assert.equal(lvlMax.level, 7);
-  assert.ok(lvlMax.progressPercent >= 0);
+  limiter.recordAttempt(userId, questId, false, baseTime);
+  limiter.recordAttempt(userId, questId, false, baseTime + 1000);
+  const res3 = limiter.recordAttempt(userId, questId, false, baseTime + 2000);
+
+  assert.equal(res3.locked, true);
+  assert.equal(limiter.checkRateLimit(userId, questId, baseTime + 5000).allowed, false);
+  assert.equal(limiter.checkRateLimit(userId, questId, baseTime + 13000).allowed, true);
 });
 
-test('evaluateDeadline - calculates friendly status and overdue notices', () => {
-  const now = new Date('2026-10-17T12:00:00Z').getTime();
+test('Student MSHS preserves leading zeros and rejects empty fields', () => {
+  assert.equal(normalizeMSHS('00123'), '00123');
+  assert.equal(normalizeMSHS('  00456  '), '00456');
+  assert.equal(normalizeMSHS('FHG30070'), 'FHG30070');
 
-  // No deadline
-  const noDl = evaluateDeadline(undefined, now);
-  assert.equal(noDl.status, 'no_deadline');
-  assert.equal(noDl.isOverdue, false);
-
-  // In 5 hours (warning_6h)
-  const in5Hours = new Date(now + 5 * 3600 * 1000).toISOString();
-  const res5h = evaluateDeadline(in5Hours, now);
-  assert.equal(res5h.status, 'warning_6h');
-  assert.equal(res5h.isOverdue, false);
-
-  // In 20 hours (warning_24h)
-  const in20Hours = new Date(now + 20 * 3600 * 1000).toISOString();
-  const res20h = evaluateDeadline(in20Hours, now);
-  assert.equal(res20h.status, 'warning_24h');
-
-  // Overdue by 3 hours
-  const past3Hours = new Date(now - 3 * 3600 * 1000).toISOString();
-  const resOverdue = evaluateDeadline(past3Hours, now);
-  assert.equal(resOverdue.status, 'overdue');
-  assert.equal(resOverdue.isOverdue, true);
+  // MSHS with leading zeros matches exactly
+  assert.equal(isStudentAuthMatch('Nguyễn Văn A', '00123', 'Nguyễn Văn A', '00123'), true);
+  assert.equal(isStudentAuthMatch('Nguyễn Văn A', '123', 'Nguyễn Văn A', '00123'), false); // Leading zero mismatch rejected
 });

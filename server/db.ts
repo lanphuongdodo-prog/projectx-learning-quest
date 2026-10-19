@@ -11,6 +11,7 @@ import {
   NotificationItem,
   FlashcardReviewState,
 } from '../src/types/index.ts';
+import { hashPassword } from '../src/utils/security.ts';
 
 export interface DatabaseSchema {
   users: User[];
@@ -28,85 +29,76 @@ const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const BACKUP_FILE = path.join(DATA_DIR, 'db.backup.json');
 
-// Initial Seed Data for Class 10A - Trường TH, THCS & THPT FPT Hậu Giang
+// Official Student List of Class 10A from School
+const OFFICIAL_10A_ROSTER = [
+  { mshs: 'FHG30070', name: 'Lê Văn Quốc An', avatar: '🦊' },
+  { mshs: 'FHG30077', name: 'Ngô Quốc An', avatar: '🦁' },
+  { mshs: 'FHG30063', name: 'Nguyễn Khánh Băng', avatar: '🐼' },
+  { mshs: 'FHG30073', name: 'Đồng Gia Bảo', avatar: '🦄' },
+  { mshs: 'FHG30074', name: 'Nguyễn Ngọc Châu', avatar: '🐱' },
+  { mshs: 'FHG30054', name: 'Hồ Mạnh Đoàn', avatar: '🐯' },
+  { mshs: 'FHG30060', name: 'Phùng Hiểu Đông', avatar: '🐨' },
+  { mshs: 'FHG30069', name: 'Đào Nhựt Duy', avatar: '🐵' },
+  { mshs: 'FHG30058', name: 'Trần Thị Minh Hân', avatar: '🐰' },
+  { mshs: 'FHG30094', name: 'Đặng Gia Hân', avatar: '🦊' },
+  { mshs: 'FHG30089', name: 'Lê Vĩnh Khang', avatar: '🐻' },
+  { mshs: 'FHG30056', name: 'Nguyễn Đăng Khôi', avatar: '🐸' },
+  { mshs: 'FHG30099', name: 'Đỗ Thanh Lộc', avatar: '🐹' },
+  { mshs: 'FHG30102', name: 'Nguyễn Gia Minh', avatar: '🦝' },
+  { mshs: 'FHG30097', name: 'Lê Tuyết Mỵ', avatar: '🦋' },
+  { mshs: 'FHG30075', name: 'Nguyễn Ngọc Ngân', avatar: '🌸' },
+  { mshs: 'FHG30080', name: 'Lê Quang Nghị', avatar: '🚀' },
+  { mshs: 'FHG30086', name: 'Nguyễn Huỳnh Hoàng Nhân', avatar: '🐬' },
+  { mshs: 'FHG30107', name: 'Lý Quốc Nhân', avatar: '🦅' },
+  { mshs: 'FHG30067', name: 'Mã Kim Oanh', avatar: '🦚' },
+  { mshs: 'FHG30064', name: 'Nguyễn Thanh Phúc', avatar: '🦉' },
+  { mshs: 'FHG30053', name: 'Nguyễn Kim Phụng', avatar: '🌻' },
+  { mshs: 'FHG30095', name: 'Trang Hữu Tấn', avatar: '🦔' },
+  { mshs: 'FHG30061', name: 'Trần Hồng Thắm', avatar: '🌷' },
+  { mshs: 'FHG30098', name: 'Trần Phước Thịnh', avatar: '🦭' },
+  { mshs: 'FHG30071', name: 'Trần Nguyễn Minh Triết', avatar: '🐺' },
+  { mshs: 'FHG30068', name: 'Trương Hiếu Trọng', avatar: '🐆' },
+  { mshs: 'FHG30105', name: 'Nguyễn Tuấn', avatar: '🐘' },
+  { mshs: 'FHG30084', name: 'Võ Lê Tường Vy', avatar: '🌺' },
+  { mshs: 'FHG30091', name: 'Nguyễn Thị Thảo Vy', avatar: '🌼' },
+  { mshs: 'FHG30100', name: 'Huỳnh Tấn Xuyên', avatar: '🦘' },
+  { mshs: 'FHG30108', name: 'Lê Tấn Lộc', avatar: '🐝' },
+];
+
 function generateSeedData(): DatabaseSchema {
+  // Hash teacher password "#PdpProX1" securely
+  const teacherCreds = hashPassword('#PdpProX1');
+
   const users: User[] = [
-    // Teacher Account
+    // Teacher Account (adminpdp / #PdpProX1)
     {
       id: 'teacher-01',
       role: 'teacher',
-      displayName: 'Cô Đỗ Lan Phương',
+      displayName: 'Ban Điều Phối Project X (Cô Đỗ Lan Phương)',
       avatar: '👩‍🏫',
-      username: 'giaovien',
+      username: 'adminpdp',
+      passwordHash: teacherCreds.hash,
+      salt: teacherCreds.salt,
       title: 'Giáo viên Chủ nhiệm & Hướng dẫn Project X 10A',
     },
-    // Grade 10A Students
-    {
-      id: 'student-01',
-      role: 'student',
-      displayName: 'Nguyễn Minh Trí',
-      studentId: 'FPT10A01',
+    // 32 Official Grade 10A Students
+    ...OFFICIAL_10A_ROSTER.map((stu, idx) => ({
+      id: `student-${stu.mshs}`,
+      role: 'student' as const,
+      displayName: stu.name,
+      studentId: stu.mshs,
       className: '10A',
       school: 'Trường Tiểu học, THCS & THPT FPT Hậu Giang',
-      avatar: '🦊',
-      xp: 450,
-      level: 3,
-      streak: 5,
-    },
-    {
-      id: 'student-02',
-      role: 'student',
-      displayName: 'Trần Lê Bảo Ngọc',
-      studentId: 'FPT10A02',
-      className: '10A',
-      school: 'Trường Tiểu học, THCS & THPT FPT Hậu Giang',
-      avatar: '🦄',
-      xp: 620,
-      level: 3,
-      streak: 7,
-    },
-    {
-      id: 'student-03',
-      role: 'student',
-      displayName: 'Lê Hoàng Nam',
-      studentId: 'FPT10A03',
-      className: '10A',
-      school: 'Trường Tiểu học, THCS & THPT FPT Hậu Giang',
-      avatar: '🦁',
-      xp: 320,
-      level: 2,
-      streak: 3,
-    },
-    {
-      id: 'student-04',
-      role: 'student',
-      displayName: 'Phạm Thảo Vy',
-      studentId: 'FPT10A04',
-      className: '10A',
-      school: 'Trường Tiểu học, THCS & THPT FPT Hậu Giang',
-      avatar: '🐼',
-      xp: 180,
-      level: 2,
-      streak: 2,
-    },
-    {
-      id: 'student-05',
-      role: 'student',
-      displayName: 'Đặng Quốc Anh',
-      studentId: 'FPT10A05',
-      className: '10A',
-      school: 'Trường Tiểu học, THCS & THPT FPT Hậu Giang',
-      avatar: '🚀',
-      xp: 120,
-      level: 1,
-      streak: 1,
-    },
+      avatar: stu.avatar,
+      xp: idx === 0 ? 350 : idx === 1 ? 280 : 0,
+      level: idx === 0 ? 3 : idx === 1 ? 2 : 1,
+      streak: idx === 0 ? 5 : idx === 1 ? 3 : 1,
+    })),
   ];
 
   const nowIso = new Date().toISOString();
   const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
   const nextWeek = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
-  const overdueYesterday = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
 
   const stages: Stage[] = [
     {
@@ -126,10 +118,10 @@ function generateSeedData(): DatabaseSchema {
           summary: 'Làm quen với tư duy thiết kế (Design Thinking) và lựa chọn chủ đề phát triển cho cộng đồng địa phương.',
           storyline: 'Chào mừng bạn đến với Học viện Project X 10A! Chuyến hải trình khởi đầu với tấm bản đồ thấu cảm: hãy quan sát và xác định vấn đề nóng hổi tại địa phương cần được giải quyết.',
           order: 1,
-          xpReward: 150,
+          xpReward: 100, // Teacher configurable
           isDemoContent: true,
           unlockType: 'code',
-          unlockCode: 'FPT-X01', // Pre-unlocked for student-01 in demo
+          unlockCode: 'FPT-X01',
           deadline: nextWeek,
           durationMinutes: 45,
           maxAttempts: 3,
@@ -202,7 +194,7 @@ function generateSeedData(): DatabaseSchema {
           },
           interactiveGame: {
             type: 'multiple_choice',
-            instructions: 'Vượt qua 3 thử thách kiến thức và tình huống thực tế để nhận 150 XP và Huy hiệu Khởi hành!',
+            instructions: 'Trả lời đúng trên 50% số câu hỏi (đúng từ 2/3 câu trở lên) để được công nhận hoàn thành chặng!',
             timeLimitSeconds: 600,
             questions: [
               {
@@ -249,7 +241,7 @@ function generateSeedData(): DatabaseSchema {
           evidenceRequirement: {
             required: true,
             title: 'Biên bản Phỏng vấn Thấu cảm & Ảnh thực địa',
-            description: 'Dán liên kết Google Docs chứa biên bản 3 cuộc phỏng vấn hoặc Google Drive chứa ảnh thực tế của nhóm bạn.',
+            description: 'Dán liên kết Google Docs chứa biên bản phỏng vấn hoặc Google Drive chứa ảnh thực tế.',
             allowedTypes: ['google_docs', 'google_drive', 'image'],
             rubricSummary: 'Đầy đủ thông tin đối tượng phỏng vấn, 5 câu hỏi mở và ghi chú insight cụ thể.',
           },
@@ -257,7 +249,7 @@ function generateSeedData(): DatabaseSchema {
             enabled: true,
             title: 'Nhiệm vụ Khôi phục Quyền: Ôn tập Thấu cảm',
             taskType: 'reflection',
-            instructions: 'Nếu bị quá hạn, hãy viết đoạn phản tư ngắn (ít nhất 50 từ) về điều em học được khi lắng nghe người khác để được gia hạn 24 giờ.',
+            instructions: 'Nếu bị quá hạn, hãy viết đoạn phản tư ngắn (ít nhất 30 từ) về điều em học được khi lắng nghe người khác để được gia hạn 24 giờ.',
             minPassingScore: 70,
             extendedHours: 24,
             maxRecoveryAttempts: 2,
@@ -271,7 +263,7 @@ function generateSeedData(): DatabaseSchema {
           summary: 'Tổng hợp dữ liệu phỏng vấn, lập Empathy Map và xác định "Nỗi đau" (Pain points) lớn nhất.',
           storyline: 'Sau khi thu thập dữ liệu từ thực địa, bạn đứng trước căn phòng mật mã của Insight. Hãy phân loại dữ liệu để tìm ra chìa khóa thấu cảm!',
           order: 2,
-          xpReward: 200,
+          xpReward: 150,
           isDemoContent: true,
           unlockType: 'code',
           unlockCode: 'INSIGHT2026',
@@ -320,7 +312,7 @@ function generateSeedData(): DatabaseSchema {
           },
           interactiveGame: {
             type: 'crypto_puzzle',
-            instructions: 'Giải mã câu đố logic để tìm ra từ khóa bí mật của phương pháp thấu cảm.',
+            instructions: 'Trả lời đúng trên 50% (đúng 2/2 câu đố) để hoàn thành chặng!',
             timeLimitSeconds: 300,
             questions: [
               {
@@ -357,20 +349,6 @@ function generateSeedData(): DatabaseSchema {
             extendedHours: 24,
             maxRecoveryAttempts: 2,
             requiresTeacherApproval: false,
-            questions: [
-              {
-                id: 'rec_q1',
-                prompt: 'Persona được xây dựng dựa trên cơ sở nào?',
-                type: 'multiple_choice',
-                options: [
-                  'A. Tự tưởng tượng tùy hứng không cần khảo sát',
-                  'B. Dữ liệu thật từ các cuộc phỏng vấn và quan sát người dùng',
-                  'C. Ý kiến cá nhân của nhóm trưởng',
-                  'D. Sao chép nguyên mẫu trên mạng',
-                ],
-                correctAnswer: 'B',
-              },
-            ],
           },
         },
       ],
@@ -392,7 +370,7 @@ function generateSeedData(): DatabaseSchema {
           summary: 'Thực hành các kỹ thuật bão não (Brainstorming) hiện đại để tìm ra 8 giải pháp độc đáo trong 8 phút.',
           storyline: 'Cánh cửa sáng tạo mở ra! Không có ý tưởng nào là ngớ ngẩn trong căn phòng bão não. Hãy giải phóng trí tưởng tượng của bạn.',
           order: 3,
-          xpReward: 200,
+          xpReward: 120,
           isDemoContent: true,
           unlockType: 'code',
           unlockCode: 'IDEATE-X',
@@ -478,7 +456,7 @@ function generateSeedData(): DatabaseSchema {
           summary: 'Xây dựng mô hình giấy, storyboard hoặc bản wireframe thử nghiệm nhanh với chi phí thấp nhất.',
           storyline: 'Chào mừng đến Xưởng Sáng tạo! Hãy biến những dòng ý tưởng trên giấy thành sản phẩm đầu tiên người dùng có thể chạm vào.',
           order: 4,
-          xpReward: 250,
+          xpReward: 150,
           isDemoContent: true,
           unlockType: 'code',
           unlockCode: 'PROTO-FPT',
@@ -553,7 +531,7 @@ function generateSeedData(): DatabaseSchema {
           summary: 'Luyện tập kỹ năng kể chuyện (Storytelling) hấp dẫn để truyền cảm hứng về dự án trong 3 phút.',
           storyline: 'Sân khấu lớn đang chờ đón bạn! Hãy kể lại hành trình vượt khó và giá trị mà dự án mang lại cho quê hương Hậu Giang.',
           order: 5,
-          xpReward: 300,
+          xpReward: 200,
           isDemoContent: true,
           unlockType: 'code',
           unlockCode: 'PITCH-WIN',
@@ -613,18 +591,31 @@ function generateSeedData(): DatabaseSchema {
     },
   ];
 
-  // Initial student progress
+  // Initial student progress for Student 1 (Lê Văn Quốc An)
+  const firstStudentId = 'student-FHG30070';
   const progress: Record<string, Record<string, StudentProgress>> = {
-    'student-01': {
+    [firstStudentId]: {
       'quest-1-1': {
         questId: 'quest-1-1',
         unlocked: true,
         unlockedAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
         status: 'completed',
         score: 100,
-        xpEarned: 150,
+        highestScore: 100,
+        xpEarned: 100,
+        highestXp: 100,
         completedAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
         attemptsCount: 1,
+        attemptsHistory: [
+          {
+            attemptNumber: 1,
+            date: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
+            correctCount: 3,
+            totalQuestions: 3,
+            scorePercent: 100,
+            xpEarned: 100,
+          },
+        ],
         recoveryAttempts: 0,
       },
       'quest-1-2': {
@@ -632,46 +623,7 @@ function generateSeedData(): DatabaseSchema {
         unlocked: true,
         unlockedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
         status: 'in_progress',
-        score: undefined,
-        xpEarned: undefined,
         attemptsCount: 0,
-        recoveryAttempts: 0,
-      },
-    },
-    'student-02': {
-      'quest-1-1': {
-        questId: 'quest-1-1',
-        unlocked: true,
-        unlockedAt: new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString(),
-        status: 'completed',
-        score: 100,
-        xpEarned: 150,
-        completedAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
-        attemptsCount: 1,
-        recoveryAttempts: 0,
-      },
-      'quest-1-2': {
-        questId: 'quest-1-2',
-        unlocked: true,
-        unlockedAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-        status: 'completed',
-        score: 95,
-        xpEarned: 200,
-        completedAt: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
-        attemptsCount: 1,
-        recoveryAttempts: 0,
-      },
-    },
-    'student-03': {
-      'quest-1-1': {
-        questId: 'quest-1-1',
-        unlocked: true,
-        unlockedAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-        status: 'completed',
-        score: 90,
-        xpEarned: 150,
-        completedAt: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
-        attemptsCount: 1,
         recoveryAttempts: 0,
       },
     },
@@ -680,7 +632,7 @@ function generateSeedData(): DatabaseSchema {
   const evidence: EvidenceSubmission[] = [
     {
       id: 'evi-01',
-      studentId: 'student-01',
+      studentId: firstStudentId,
       questId: 'quest-1-1',
       url: 'https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
       title: 'Biên bản Phỏng vấn Nông dân Hậu Giang về Nông sản',
@@ -693,32 +645,17 @@ function generateSeedData(): DatabaseSchema {
       teacherScore: 95,
       reviewedAt: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
     },
-    {
-      id: 'evi-02',
-      studentId: 'student-02',
-      questId: 'quest-1-1',
-      url: 'https://docs.google.com/presentation/d/1a2b3c4d5e/edit',
-      title: 'Slide Ảnh Khảo sát Thực địa Cầu Đúc',
-      description: 'Tập hợp 12 bức ảnh chụp quy trình thu hoạch và đóng gói khóm.',
-      submittedAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(),
-      detectedType: 'google_slides',
-      embedUrl: 'https://docs.google.com/presentation/d/1a2b3c4d5e/embed',
-      status: 'approved',
-      teacherFeedback: 'Hình ảnh sống động, phân loại vấn đề rất rõ ràng!',
-      teacherScore: 98,
-      reviewedAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-    },
   ];
 
   const feedback: TeacherFeedback[] = [
     {
       id: 'fb-01',
-      studentId: 'student-01',
+      studentId: firstStudentId,
       stageId: 'stage-1',
       teacherName: 'Cô Đỗ Lan Phương',
       updatedAt: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
       isDraft: false,
-      generalNote: 'Minh Trí đã thể hiện tinh thần dẫn dắt rất ấn tượng trong Giai đoạn 1. Em biết cách khích lệ các bạn trong nhóm và luôn chủ động phản tư sau mỗi buổi học.',
+      generalNote: 'Quốc An đã thể hiện tinh thần dẫn dắt rất ấn tượng trong Giai đoạn 1. Em biết cách khích lệ các bạn trong nhóm và luôn chủ động phản tư sau mỗi buổi học.',
       strengths: [
         'Kỹ năng lắng nghe thấu cảm người dùng tốt',
         'Tư duy phân tích nguyên nhân gốc rễ sắc sảo',
@@ -730,24 +667,11 @@ function generateSeedData(): DatabaseSchema {
       nextGoals: 'Tập trung sáng tạo ít nhất 3 giải pháp độc đáo trong Chặng Crazy 8s của Giai đoạn 2.',
       engagementRating: 5,
     },
-    {
-      id: 'fb-02',
-      studentId: 'student-02',
-      stageId: 'stage-1',
-      teacherName: 'Cô Đỗ Lan Phương',
-      updatedAt: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString(),
-      isDraft: false,
-      generalNote: 'Bảo Ngọc có năng khiếu trực quan hóa thông tin xuất sắc. Bộ hồ sơ phỏng vấn và bản đồ thấu cảm của nhóm em có tính thẩm mỹ và mạch lạc rất cao.',
-      strengths: ['Sáng tạo hình ảnh minh họa', 'Tiến độ làm bài rất nhanh và cẩn thận'],
-      areasForGrowth: ['Cần chú ý thêm về các số liệu định lượng'],
-      nextGoals: 'Chuẩn bị mô hình Low-Fi nguyên mẫu thử nghiệm cho giai đoạn 3.',
-      engagementRating: 5,
-    },
   ];
 
   const portfolios: Record<string, PortfolioData> = {
-    'student-01': {
-      studentId: 'student-01',
+    [firstStudentId]: {
+      studentId: firstStudentId,
       template: 'journey',
       colorTheme: 'orange',
       bio: 'Học sinh lớp 10A FPT Hậu Giang, đam mê giải quyết các bài toán xã hội bằng công nghệ và tư duy đổi mới.',
@@ -763,7 +687,6 @@ function generateSeedData(): DatabaseSchema {
       stickers: [
         { id: 'stk-1', stickerKey: 'rocket', x: 82, y: 15, scale: 1.2, rotation: 12 },
         { id: 'stk-2', stickerKey: 'star', x: 12, y: 35, scale: 1.0, rotation: -8 },
-        { id: 'stk-3', stickerKey: 'lightbulb', x: 85, y: 65, scale: 1.1, rotation: 15 },
       ],
       updatedAt: nowIso,
     },
@@ -772,7 +695,7 @@ function generateSeedData(): DatabaseSchema {
   const notifications: NotificationItem[] = [
     {
       id: 'notif-01',
-      studentId: 'student-01',
+      studentId: firstStudentId,
       questId: 'quest-1-2',
       type: 'deadline_24h',
       title: 'Nhắc nhở Thời hạn: Chặng 02',
@@ -780,20 +703,10 @@ function generateSeedData(): DatabaseSchema {
       createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
       isRead: false,
     },
-    {
-      id: 'notif-02',
-      studentId: 'student-01',
-      questId: 'quest-1-1',
-      type: 'feedback_posted',
-      title: 'Cô Đỗ Lan Phương đã gửi nhận xét Giai đoạn 1',
-      message: 'Cô Phương vừa gửi thư phản hồi và định hướng phát triển cá nhân cho bạn tại Giai đoạn 1. Xem ngay nhé!',
-      createdAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-      isRead: true,
-    },
   ];
 
   const flashcardProgress: Record<string, Record<string, FlashcardReviewState>> = {
-    'student-01': {
+    [firstStudentId]: {
       'fc-1-1': { cardId: 'fc-1-1', state: 'mastered', updatedAt: nowIso },
       'fc-1-2': { cardId: 'fc-1-2', state: 'mastered', updatedAt: nowIso },
       'fc-1-3': { cardId: 'fc-1-3', state: 'need_review', updatedAt: nowIso },
@@ -831,12 +744,19 @@ class Database {
 
       if (fs.existsSync(DB_FILE)) {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
-        this.data = JSON.parse(raw);
-        this.isLoaded = true;
-      } else {
-        this.save();
-        this.isLoaded = true;
+        const parsed = JSON.parse(raw);
+        // Ensure official 32 students are present
+        const hasOfficialStudents = parsed.users && parsed.users.some((u: any) => u.studentId === 'FHG30070');
+        if (hasOfficialStudents) {
+          this.data = parsed;
+          this.isLoaded = true;
+          return;
+        }
       }
+
+      this.data = generateSeedData();
+      this.save();
+      this.isLoaded = true;
     } catch (err) {
       console.error('Error loading DB file, fallback to seed data:', err);
       this.data = generateSeedData();
@@ -852,7 +772,6 @@ class Database {
       this.data.lastUpdated = new Date().toISOString();
       const content = JSON.stringify(this.data, null, 2);
       fs.writeFileSync(DB_FILE, content, 'utf-8');
-      // Create backup
       fs.writeFileSync(BACKUP_FILE, content, 'utf-8');
     } catch (err) {
       console.error('Error saving DB file:', err);
@@ -866,6 +785,77 @@ class Database {
   public resetToDefault(): void {
     this.data = generateSeedData();
     this.save();
+  }
+
+  /**
+   * Import or merge students from Excel/CSV roster without losing progress
+   */
+  public importStudents(roster: Array<{ mshs: string; name: string }>): {
+    success: boolean;
+    addedCount: number;
+    updatedCount: number;
+    errors: string[];
+  } {
+    const errors: string[] = [];
+    const seenMshs = new Set<string>();
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    const validated: Array<{ mshs: string; name: string }> = [];
+
+    roster.forEach((item, idx) => {
+      const cleanMshs = String(item.mshs || '').trim().toUpperCase();
+      const cleanName = String(item.name || '').trim().replace(/\s+/g, ' ');
+
+      if (!cleanMshs || !cleanName) {
+        errors.push(`Dòng ${idx + 1}: Thiếu MSHS hoặc Họ và tên.`);
+        return;
+      }
+
+      if (seenMshs.has(cleanMshs)) {
+        errors.push(`Dòng ${idx + 1}: Trùng lặp MSHS "${cleanMshs}".`);
+        return;
+      }
+      seenMshs.add(cleanMshs);
+      validated.push({ mshs: cleanMshs, name: cleanName });
+    });
+
+    if (errors.length > 0) {
+      return { success: false, addedCount: 0, updatedCount: 0, errors };
+    }
+
+    const avatars = ['🦊', '🦁', '🐼', '🦄', '🐱', '🐯', '🐨', '🐵', '🐰', '🐻', '🐸', '🐹', '🦝', '🦋', '🌸', '🚀'];
+
+    validated.forEach((item, idx) => {
+      const existingUser = this.data.users.find(
+        (u) => u.role === 'student' && u.studentId?.toUpperCase() === item.mshs
+      );
+
+      if (existingUser) {
+        // Update name, preserve id, xp, progress
+        existingUser.displayName = item.name;
+        updatedCount++;
+      } else {
+        // Add new student
+        const newStudent: User = {
+          id: `student-${item.mshs}`,
+          role: 'student',
+          displayName: item.name,
+          studentId: item.mshs,
+          className: '10A',
+          school: 'Trường Tiểu học, THCS & THPT FPT Hậu Giang',
+          avatar: avatars[idx % avatars.length],
+          xp: 0,
+          level: 1,
+          streak: 1,
+        };
+        this.data.users.push(newStudent);
+        addedCount++;
+      }
+    });
+
+    this.save();
+    return { success: true, addedCount, updatedCount, errors: [] };
   }
 }
 

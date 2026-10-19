@@ -6,7 +6,7 @@ import { api, getStoredToken, setStoredToken } from '../services/api.ts';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  loginStudent: (studentId: string, pin?: string) => Promise<void>;
+  loginStudent: (name: string, studentId: string) => Promise<void>;
   loginTeacher: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -42,11 +42,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUser();
   }, []);
 
-  const loginStudent = async (studentId: string, pin = '1234') => {
+  const loginStudent = async (name: string, studentId: string) => {
     const res = await api.login({
       role: 'student',
+      name,
       studentId,
-      pin,
     });
     setUser(res.user);
   };

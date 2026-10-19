@@ -58,6 +58,7 @@ export const api = {
   async login(credentials: {
     role: 'student' | 'teacher';
     studentId?: string;
+    name?: string;
     pin?: string;
     username?: string;
     password?: string;
@@ -194,6 +195,20 @@ export const api = {
     return request(`/api/teacher/quests/${questId}`, {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+
+  async changeTeacherPassword(payload: { oldPassword: string; newPassword: string }): Promise<any> {
+    return request('/api/teacher/change-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async importStudents(roster: Array<{ mshs: string; name: string }>): Promise<any> {
+    return request('/api/teacher/import-students', {
+      method: 'POST',
+      body: JSON.stringify({ roster }),
     });
   },
 

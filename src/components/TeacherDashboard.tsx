@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Stage, User } from '../types/index.ts';
 import { api } from '../services/api.ts';
+import { EvidenceCard } from './EvidenceCard.tsx';
+import { StudentExcelImporter } from './StudentExcelImporter.tsx';
 import {
   Users,
   BookOpen,
@@ -20,6 +22,7 @@ import {
   Edit3,
   Save,
   Plus,
+  Lock,
 } from 'lucide-react';
 
 interface TeacherDashboardProps {
@@ -40,6 +43,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
   const [editTitle, setEditTitle] = useState('');
   const [editSummary, setEditSummary] = useState('');
   const [editXpReward, setEditXpReward] = useState(150);
+  const [editPassThreshold, setEditPassThreshold] = useState<number>(50);
+  const [editGradingRule, setEditGradingRule] = useState<'proportional' | 'full_on_pass'>('proportional');
   const [questSaving, setQuestSaving] = useState(false);
 
   // Evidence Review Modal
@@ -60,6 +65,39 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
   const [fbIsDraft, setFbIsDraft] = useState(false);
   const [fbSaving, setFbSaving] = useState(false);
   const [fbSuccess, setFbSuccess] = useState<string | null>(null);
+
+  // Excel Importer & Password states
+  const [showExcelImporter, setShowExcelImporter] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordMsg, setPasswordMsg] = useState<string | null>(null);
+  const [passwordErr, setPasswordErr] = useState<string | null>(null);
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!oldPassword || !newPassword) {
+      setPasswordErr('Vui lòng nhập mật khẩu cũ và mật khẩu mới.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordErr('Mật khẩu mới phải có tối thiểu 6 ký tự.');
+      return;
+    }
+    setChangingPassword(true);
+    setPasswordErr(null);
+    setPasswordMsg(null);
+    try {
+      const res = await api.changeTeacherPassword({ oldPassword, newPassword });
+      setPasswordMsg(res.message || 'Đổi mật khẩu thành công!');
+      setOldPassword('');
+      setNewPassword('');
+    } catch (err: any) {
+      setPasswordErr(err.message || 'Mật khẩu cũ không chính xác.');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -90,7 +128,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
     setEditDeadline(q.deadline ? new Date(q.deadline).toISOString().slice(0, 16) : '');
     setEditTitle(q.title || '');
     setEditSummary(q.summary || '');
-    setEditXpReward(q.xpReward || 150);
+    setEditXpReward(q.xpReward !== undefined ? q.xpReward : 100);
+    setEditPassThreshold(q.passThreshold !== undefined ? q.passThreshold : 50);
+    setEditGradingRule(q.gradingRule || 'proportional');
   };
 
   const handleSaveQuest = async () => {
@@ -103,8 +143,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
         title: editTitle,
         summary: editSummary,
         xpReward: editXpReward,
+        passThreshold: editPassThreshold,
+        gradingRule: editGradingRule,
       });
-      alert('Đã cập nhật thông tin chặng thành công!');
+      alert('Đã cập nhật thông tin chặng và cấu hình điểm XP thành công!');
       setEditingQuest(null);
       onRefreshStages();
     } catch (err: any) {
@@ -254,13 +296,48 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
 
       {/* TAB 1: STUDENTS OVERVIEW */}
       {activeTab === 'overview' && (
-        <div className="rounded-3xl bg-white border border-slate-200 shadow-md overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-black text-slate-900 text-base">
-              Danh sách Học sinh Lớp 10A ({students.length})
-            </h3>
-            <span className="text-xs text-slate-500">Mã PIN mặc định demo: 1234</span>
+        <div className="space-y-6">
+          {/* Toggle Excel Importer */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 rounded-3xl bg-linear-to-r from-emerald-500/10 via-teal-500/10 to-amber-500/10 border border-emerald-200">
+            <div>
+              <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                <span>Nguồn Dữ Liệu Học Sinh Lớp 10A (Nhập từ Excel)</span>
+              </h4>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Đăng nhập học sinh được xác thực trực tiếp dựa trên danh sách này (Họ tên đầy đủ và MSHS).
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowExcelImporter(!showExcelImporter)}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition shadow-sm shrink-0"
+            >
+              <Upload className="w-4 h-4" />
+              <span>{showExcelImporter ? 'Đóng hộp nhập Excel' : 'Nhập học sinh từ Excel'}</span>
+            </button>
           </div>
+
+          {/* Excel Importer Box */}
+          {showExcelImporter && (
+            <StudentExcelImporter
+              onSuccess={() => {
+                fetchData();
+              }}
+              existingStudentIds={students.map((s) => s.studentId || '')}
+            />
+          )}
+
+          <div className="rounded-3xl bg-white border border-slate-200 shadow-md overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-black text-slate-900 text-base">
+                Danh sách Học sinh Lớp 10A ({students.length})
+              </h3>
+              <span className="text-xs font-semibold text-slate-500">
+                Xác thực bằng: Họ và tên đầy đủ + MSHS
+              </span>
+            </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -322,6 +399,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
               </tbody>
             </table>
           </div>
+        </div>
         </div>
       )}
 
@@ -393,57 +471,175 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
 
           {/* Edit Quest Modal */}
           {editingQuest && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-              <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-4 shadow-2xl border border-slate-200">
-                <h4 className="text-lg font-black text-slate-900">
-                  Cấu hình Chặng: {editingQuest.title}
-                </h4>
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+              <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl border border-slate-200 my-8">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md">
+                    Cấu hình chặng & Cơ chế điểm thưởng
+                  </span>
+                  <h4 className="text-lg font-black text-slate-900 mt-1">
+                    Thiết lập: {editingQuest.title}
+                  </h4>
+                </div>
 
-                <div className="space-y-3 text-xs font-bold text-slate-700">
+                <div className="space-y-4 text-xs font-bold text-slate-700">
+                  {/* Tên chặng */}
                   <div>
-                    <label className="block mb-1">Mã mở khóa (Unlock Code):</label>
+                    <label className="block mb-1 text-slate-800">Tên chặng học tập:</label>
                     <input
                       type="text"
-                      value={editUnlockCode}
-                      onChange={(e) => setEditUnlockCode(e.target.value.toUpperCase())}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 font-mono text-sm tracking-wider uppercase"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 font-sans text-xs focus:border-orange-500 outline-hidden font-medium"
+                      placeholder="Nhập tên chặng..."
                     />
                   </div>
 
+                  {/* Mô tả chặng */}
                   <div>
-                    <label className="block mb-1">Thời hạn chót (Deadline):</label>
-                    <input
-                      type="datetime-local"
-                      value={editDeadline}
-                      onChange={(e) => setEditDeadline(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-sans"
+                    <label className="block mb-1 text-slate-800">Mô tả tóm tắt chặng:</label>
+                    <textarea
+                      rows={2}
+                      value={editSummary}
+                      onChange={(e) => setEditSummary(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-300 font-sans text-xs focus:border-orange-500 outline-hidden font-medium"
+                      placeholder="Tóm tắt nội dung thử thách..."
                     />
                   </div>
 
+                  {/* Thông tin số lượng câu hỏi */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-slate-800 block font-bold">Số lượng câu hỏi được tính điểm:</span>
+                      <span className="text-[11px] text-slate-500 font-normal">
+                        Mẫu số dùng để tính tỷ lệ chính xác và công nhận hoàn thành chặng.
+                      </span>
+                    </div>
+                    <span className="text-base font-black text-indigo-700 bg-indigo-100 px-3 py-1 rounded-xl">
+                      {editingQuest.interactiveGame?.questions?.length || 0} câu
+                    </span>
+                  </div>
+
+                  {/* Điểm XP tối đa của chặng */}
                   <div>
-                    <label className="block mb-1">Điểm thưởng (XP Reward):</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-slate-800 font-bold">Điểm XP tối đa của chặng (XP Reward):</label>
+                      <span className="text-[10px] text-orange-600 font-bold">Gamification XP</span>
+                    </div>
                     <input
                       type="number"
+                      min={10}
+                      step={10}
                       value={editXpReward}
                       onChange={(e) => setEditXpReward(Number(e.target.value))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-black text-orange-600 focus:border-orange-500 outline-hidden"
                     />
+                    <p className="text-[11px] text-slate-500 mt-1 font-normal">
+                      💡 Giáo viên có thể đặt linh hoạt theo độ khó (ví dụ: chặng 10 câu đặt 100 XP, chặng 5 câu đặt 50 XP).
+                    </p>
+                  </div>
+
+                  {/* Ngưỡng điểm để hoàn thành chặng */}
+                  <div>
+                    <label className="block mb-1 text-slate-800">Ngưỡng điểm để công nhận hoàn thành chặng:</label>
+                    <select
+                      value={editPassThreshold}
+                      onChange={(e) => setEditPassThreshold(Number(e.target.value))}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:border-orange-500 outline-hidden bg-white"
+                    >
+                      <option value={50}>
+                        Đúng trên 50% câu hỏi (Chuẩn: floor(N/2)+1 câu, ví dụ 6/10 câu, 3/5 câu)
+                      </option>
+                      <option value={60}>Đúng từ 60% tổng số câu hỏi trở lên</option>
+                      <option value={70}>Đúng từ 70% tổng số câu hỏi trở lên</option>
+                      <option value={80}>Đúng từ 80% tổng số câu hỏi trở lên</option>
+                    </select>
+                  </div>
+
+                  {/* Quy tắc chấm điểm & quy đổi XP */}
+                  <div>
+                    <label className="block mb-1 text-slate-800">Quy tắc quy đổi điểm bài làm sang XP:</label>
+                    <div className="space-y-2">
+                      <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:bg-orange-50/40 transition">
+                        <input
+                          type="radio"
+                          name="gradingRule"
+                          value="proportional"
+                          checked={editGradingRule === 'proportional'}
+                          onChange={() => setEditGradingRule('proportional')}
+                          className="mt-0.5 text-orange-600 focus:ring-orange-500"
+                        />
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 block">
+                            Quy đổi theo tỷ lệ phần trăm (Khuyên dùng)
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-normal block mt-0.5">
+                            XP nhận được = (Số câu đúng / Tổng số câu) × XP tối đa. Ví dụ: đúng 8/10 câu nhận 80% của {editXpReward} XP = {Math.round(0.8 * editXpReward)} XP.
+                          </span>
+                        </div>
+                      </label>
+
+                      <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:bg-orange-50/40 transition">
+                        <input
+                          type="radio"
+                          name="gradingRule"
+                          value="full_on_pass"
+                          checked={editGradingRule === 'full_on_pass'}
+                          onChange={() => setEditGradingRule('full_on_pass')}
+                          className="mt-0.5 text-orange-600 focus:ring-orange-500"
+                        />
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 block">
+                            Nhận trọn vẹn 100% XP khi đạt ngưỡng hoàn thành
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-normal block mt-0.5">
+                            Chỉ cần vượt ngưỡng chặng là nhận đủ {editXpReward} XP.
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Mã mở khóa & Deadline */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-100">
+                    <div>
+                      <label className="block mb-1 text-slate-800">Mã mở khóa:</label>
+                      <input
+                        type="text"
+                        value={editUnlockCode}
+                        onChange={(e) => setEditUnlockCode(e.target.value.toUpperCase())}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs tracking-wider uppercase"
+                        placeholder="VD: QUEST-10A"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block mb-1 text-slate-800">Thời hạn chót (Deadline):</label>
+                      <input
+                        type="datetime-local"
+                        value={editDeadline}
+                        onChange={(e) => setEditDeadline(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-sans"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex gap-2 justify-end pt-3">
+                <div className="flex gap-2 justify-end pt-3 border-t border-slate-100">
                   <button
+                    type="button"
                     onClick={() => setEditingQuest(null)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
                   >
                     Hủy
                   </button>
                   <button
+                    type="button"
                     onClick={handleSaveQuest}
                     disabled={questSaving}
-                    className="px-5 py-2 rounded-xl bg-orange-500 text-white text-xs font-extrabold hover:bg-orange-600 disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-extrabold shadow-md transition disabled:opacity-50"
                   >
-                    {questSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                    {questSaving ? 'Đang lưu...' : 'Lưu thiết lập chặng'}
                   </button>
                 </div>
               </div>
@@ -464,74 +660,22 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {evidences.map((evi) => {
               const matchedStudent = students.find((s) => s.id === evi.studentId);
               return (
-                <div
+                <EvidenceCard
                   key={evi.id}
-                  className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-500">
-                        HS: {matchedStudent ? matchedStudent.displayName : evi.studentId}
-                      </span>
-                      <span
-                        className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
-                          evi.status === 'approved'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : evi.status === 'needs_revision'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-sky-100 text-sky-800'
-                        }`}
-                      >
-                        {evi.status === 'approved'
-                          ? `Đã duyệt (${evi.teacherScore || 95}đ)`
-                          : evi.status === 'needs_revision'
-                          ? 'Cần sửa'
-                          : 'Chờ duyệt'}
-                      </span>
-                    </div>
-
-                    <h4 className="text-sm font-extrabold text-slate-900 leading-snug">
-                      {evi.title}
-                    </h4>
-
-                    {evi.description && (
-                      <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl">
-                        {evi.description}
-                      </p>
-                    )}
-
-                    <div className="flex items-center justify-between text-xs pt-1">
-                      <span className="text-[11px] text-slate-400 font-mono truncate max-w-xs">{evi.url}</span>
-                      <a
-                        href={evi.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-bold text-orange-600 hover:text-orange-700 ml-2"
-                      >
-                        <span>Mở link gốc</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex justify-end">
-                    <button
-                      onClick={() => {
-                        setReviewingEvidence(evi);
-                        setReviewStatus(evi.status === 'submitted' ? 'approved' : evi.status);
-                        setReviewScore(evi.teacherScore || 95);
-                        setReviewFeedback(evi.teacherFeedback || '');
-                      }}
-                      className="px-4 py-1.5 rounded-xl bg-orange-500 text-white text-xs font-bold hover:bg-orange-600 transition shadow-xs"
-                    >
-                      Chấm điểm & Nhận xét
-                    </button>
-                  </div>
-                </div>
+                  evidence={evi}
+                  showStudentName={true}
+                  studentName={matchedStudent ? matchedStudent.displayName : evi.studentId}
+                  onReview={(item) => {
+                    setReviewingEvidence(item);
+                    setReviewStatus(item.status === 'submitted' ? 'approved' : item.status);
+                    setReviewScore(item.teacherScore || 95);
+                    setReviewFeedback(item.teacherFeedback || '');
+                  }}
+                />
               );
             })}
           </div>
@@ -749,9 +893,72 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
         </div>
       )}
 
-      {/* TAB 5: REPORTS & BACKUP */}
+      {/* TAB 5: REPORTS & SETTINGS */}
       {activeTab === 'reports' && (
         <div className="space-y-6 max-w-2xl mx-auto">
+          {/* Change Teacher Password */}
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+            <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <Lock className="w-5 h-5 text-orange-600" />
+              <span>Đổi Mật Khẩu Quản Trị Giáo Viên</span>
+            </h4>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Tài khoản giáo viên hiện tại: <span className="font-mono font-bold text-slate-800">adminpdp</span>. Mật khẩu được băm và lưu trữ an toàn bằng thuật toán mã hóa SHA-256 có Salt.
+            </p>
+
+            {passwordMsg && (
+              <div className="p-3 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-300">
+                ✓ {passwordMsg}
+              </div>
+            )}
+            {passwordErr && (
+              <div className="p-3 bg-rose-50 text-rose-800 text-xs font-bold rounded-xl border border-rose-300">
+                ⚠️ {passwordErr}
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Mật khẩu hiện tại:
+                </label>
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu cũ"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono outline-hidden focus:border-orange-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Mật khẩu mới (tối thiểu 6 ký tự):
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu mới"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-mono outline-hidden focus:border-orange-500"
+                  required
+                />
+              </div>
+
+              <div className="text-right pt-1">
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs transition shadow-xs disabled:opacity-50"
+                >
+                  {changingPassword ? 'Đang lưu...' : 'Lưu mật khẩu mới'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Export Report Card */}
           <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
             <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
               <Download className="w-5 h-5 text-orange-500" />
@@ -768,19 +975,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
             </button>
           </div>
 
+          {/* Reset Demo / Seed Data Card */}
           <div className="p-6 rounded-3xl bg-rose-50 border border-rose-200 space-y-4">
             <h4 className="text-base font-black text-rose-950 flex items-center gap-2">
               <RotateCcw className="w-5 h-5 text-rose-600" />
-              <span>Khôi Phục Dữ Liệu Mẫu (Demo Reset)</span>
+              <span>Khôi Phục Danh Sách Học Sinh 10A Mặc Định</span>
             </h4>
             <p className="text-xs text-rose-800 leading-relaxed">
-              Đặt lại cơ sở dữ liệu về trạng thái mẫu ban đầu cho lớp 10A với 5 học sinh demo, các chặng mẫu và nhận xét của giáo viên.
+              Đặt lại cơ sở dữ liệu về danh sách 32 học sinh chính thức ban đầu của lớp 10A Trường Tiểu học, THCS & THPT FPT Hậu Giang, các chặng học tập và thư nhận xét của giáo viên.
             </p>
             <button
               onClick={handleResetData}
               className="px-5 py-2.5 rounded-2xl bg-rose-600 text-white text-xs font-extrabold hover:bg-rose-700 transition"
             >
-              Đặt lại dữ liệu mẫu 10A
+              Đặt lại danh sách 10A chuẩn
             </button>
           </div>
         </div>

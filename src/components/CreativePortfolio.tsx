@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { api } from '../services/api.ts';
 import { PortfolioData, StickerPlacement } from '../types/index.ts';
+import { EvidenceCard } from './EvidenceCard.tsx';
 import { calculateLevelInfo, SYSTEM_BADGES } from '../utils/gamification.ts';
 import {
   Sparkles,
@@ -512,28 +513,9 @@ export const CreativePortfolio: React.FC = () => {
               <span>Sản Phẩm & Minh Chứng Nổi Bật (Đã nộp trực tuyến)</span>
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-6">
               {evidenceList.map((item: any) => (
-                <div key={item.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-3">
-                  <div>
-                    <h5 className="text-xs font-bold text-slate-900">{item.title}</h5>
-                    <p className="text-[11px] text-slate-500 truncate max-w-xs">{item.url}</p>
-                    {item.status === 'approved' && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 inline-block">
-                        ✓ Giáo viên đã xác nhận ({item.teacherScore || 95}đ)
-                      </span>
-                    )}
-                  </div>
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 rounded-xl bg-white border border-slate-200 text-orange-600 hover:bg-orange-50 shrink-0"
-                    title="Mở liên kết sản phẩm"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </div>
+                <EvidenceCard key={item.id} evidence={item} />
               ))}
             </div>
           </div>

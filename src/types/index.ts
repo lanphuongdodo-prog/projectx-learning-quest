@@ -8,7 +8,7 @@ export interface User {
   displayName: string;
   avatar: string;
   // Student specific
-  studentId?: string; // e.g. FPT10A01
+  studentId?: string; // e.g. FHG30070
   className?: string; // 10A
   school?: string; // TH, THCS & THPT FPT Hậu Giang
   xp?: number;
@@ -16,6 +16,8 @@ export interface User {
   streak?: number;
   // Teacher specific
   username?: string;
+  passwordHash?: string;
+  salt?: string;
   title?: string;
 }
 
@@ -146,6 +148,8 @@ export interface Quest {
   interactiveGame: InteractiveGame;
   evidenceRequirement?: EvidenceRequirement;
   recoveryConfig: RecoveryConfig;
+  passThreshold?: number; // e.g. 50 (meaning > 50%), 60, 70
+  gradingRule?: 'proportional' | 'full_on_pass';
 }
 
 export interface Stage {
@@ -160,15 +164,27 @@ export interface Stage {
   quests: Quest[];
 }
 
+export interface AttemptHistoryItem {
+  attemptNumber: number;
+  date: string;
+  correctCount: number;
+  totalQuestions: number;
+  scorePercent: number;
+  xpEarned: number;
+}
+
 export interface StudentProgress {
   questId: string;
   unlocked: boolean;
   unlockedAt?: string;
   status: QuestStatus;
-  score?: number;
-  xpEarned?: number;
+  score?: number; // Latest score
+  highestScore?: number; // Highest score achieved
+  xpEarned?: number; // Latest XP
+  highestXp?: number; // Highest XP recorded
   completedAt?: string;
   attemptsCount: number;
+  attemptsHistory?: AttemptHistoryItem[];
   recoveryAttempts: number;
   deadlineOverridden?: string;
   recoveryHistory?: Array<{

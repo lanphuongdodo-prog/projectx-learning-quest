@@ -4,11 +4,26 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { db } from './server/db.ts';
-import { UnlockCodeRateLimiter } from './src/utils/security.ts';
+import {
+  UnlockCodeRateLimiter,
+  isStudentAuthMatch,
+  verifyPassword,
+  hashPassword,
+  normalizeMSHS,
+  normalizeStudentName,
+} from './src/utils/security.ts';
 import { parseEvidenceUrl } from './src/utils/evidenceParser.ts';
-import { calculateLevelInfo } from './src/utils/gamification.ts';
+import { calculateLevelInfo, calculateQuestPass, calculateXpEarned } from './src/utils/gamification.ts';
 import { evaluateDeadline } from './src/utils/deadlineHelper.ts';
-import { User, StudentProgress, EvidenceSubmission, TeacherFeedback, PortfolioData, NotificationItem } from './src/types/index.ts';
+import {
+  User,
+  StudentProgress,
+  EvidenceSubmission,
+  TeacherFeedback,
+  PortfolioData,
+  NotificationItem,
+  AttemptHistoryItem,
+} from './src/types/index.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,17 +84,28 @@ function teacherOnly(req: Request, res: Response, next: NextFunction): void {
 
 // POST /api/auth/login
 app.post('/api/auth/login', (req: Request, res: Response) => {
-  const { role, studentId, pin, username, password } = req.body;
+  const { role, username, password } = req.body;
+  const rawStudentId = req.body.studentId || req.body.mshs;
+  const rawName = req.body.name || req.body.fullName;
   const data = db.getData();
 
   if (role === 'teacher') {
-    // Teacher Login: username 'giaovien' and password 'fpt123456'
-    if (
-      (username === 'giaovien' || username === 'lanphuong.dodo@gmail.com') &&
-      password === 'fpt123456'
-    ) {
-      const teacher = data.users.find((u) => u.role === 'teacher');
-      if (teacher) {
+    // Teacher Login: username 'adminpdp' (or 'giaovien') and password '#PdpProX1'
+    if (!username || !password) {
+      res.status(400).json({ error: 'Vui lòng nhập tên đăng nhập và mật khẩu giáo viên.' });
+      return;
+    }
+    const cleanUser = username.trim().toLowerCase();
+    const teacher = data.users.find(
+      (u) => u.role === 'teacher' && (u.username?.toLowerCase() === cleanUser || cleanUser === 'adminpdp')
+    );
+
+    if (teacher) {
+      const isValid = teacher.passwordHash && teacher.salt
+        ? verifyPassword(password, teacher.passwordHash, teacher.salt)
+        : password === '#PdpProX1' || password === 'fpt123456';
+
+      if (isValid) {
         const token = generateToken(teacher.id);
         res.json({ token, user: teacher });
         return;
@@ -89,27 +115,23 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     return;
   }
 
-  // Student Login: Student ID (e.g. FPT10A01) and PIN (e.g. 1234)
-  if (!studentId) {
-    res.status(400).json({ error: 'Vui lòng nhập Mã số học sinh (ví dụ: FPT10A01).' });
-    return;
-  }
-
-  const normalizedId = studentId.trim().toUpperCase();
-  const student = data.users.find(
-    (u) => u.role === 'student' && u.studentId?.toUpperCase() === normalizedId
-  );
-
-  if (!student) {
-    res.status(404).json({
-      error: `Không tìm thấy mã số học sinh "${normalizedId}" trong danh sách lớp 10A.`,
+  // Student Login: Requires BOTH Họ và tên AND MSHS! NO PIN or extra password required.
+  if (!rawStudentId || !rawName) {
+    res.status(400).json({
+      error: 'Vui lòng nhập đầy đủ Họ và tên và Mã số học sinh (MSHS).',
     });
     return;
   }
 
-  // Default demo pin is 1234 if pin is provided
-  if (pin && pin.trim() !== '1234') {
-    res.status(401).json({ error: 'Mã PIN không chính xác (mặc định demo là 1234).' });
+  // Check matching against registered student roster using normalized comparison
+  const student = data.users.find(
+    (u) => u.role === 'student' && isStudentAuthMatch(rawName, rawStudentId, u.displayName, u.studentId || '')
+  );
+
+  if (!student) {
+    res.status(401).json({
+      error: 'Thông tin chưa khớp với danh sách học sinh của nhà trường. Bạn vui lòng kiểm tra lại họ tên và mã số học sinh nhé!',
+    });
     return;
   }
 
@@ -431,8 +453,11 @@ app.post('/api/quests/:questId/submit', authMiddleware, (req: Request, res: Resp
   }
 
   const totalQuestions = questions.length;
-  const scorePercent = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 100;
-  const isPassed = scorePercent >= 60; // 60% passing score
+  const passInfo = calculateQuestPass(correctCount, totalQuestions, targetQuest.passThreshold || 50);
+  const isPassed = passInfo.isPassed;
+  const scorePercent = passInfo.accuracyPercent;
+  const maxXp = targetQuest.xpReward || 100;
+  const xpEarned = calculateXpEarned(correctCount, totalQuestions, maxXp, targetQuest.gradingRule || 'proportional');
 
   if (!data.progress[user.id]) {
     data.progress[user.id] = {};
@@ -444,33 +469,62 @@ app.post('/api/quests/:questId/submit', authMiddleware, (req: Request, res: Resp
     status: 'in_progress',
     attemptsCount: 0,
     recoveryAttempts: 0,
+    attemptsHistory: [],
   };
 
-  prog.attemptsCount += 1;
-  prog.score = scorePercent;
+  prog.attemptsCount = (prog.attemptsCount || 0) + 1;
+  const wasAlreadyCompleted = prog.status === 'completed';
 
-  let xpEarned = 0;
+  // Record attempt history
+  const attemptItem: AttemptHistoryItem = {
+    attemptNumber: prog.attemptsCount,
+    date: new Date().toISOString(),
+    correctCount,
+    totalQuestions,
+    scorePercent,
+    xpEarned,
+  };
+  if (!prog.attemptsHistory) prog.attemptsHistory = [];
+  prog.attemptsHistory.push(attemptItem);
+
   let newBadgeEarned = null;
+  const studentUser = data.users.find((u) => u.id === user.id);
 
-  if (isPassed) {
+  if (isPassed || wasAlreadyCompleted) {
+    // Mark completed (or keep completed if retrying)
     prog.status = 'completed';
-    prog.completedAt = new Date().toISOString();
-    xpEarned = targetQuest.xpReward || 150;
+    if (!prog.completedAt) {
+      prog.completedAt = new Date().toISOString();
+    }
+
+    // Always update latest score and latest XP for display
+    prog.score = scorePercent;
     prog.xpEarned = xpEarned;
 
-    // Update student total XP & Level
-    const studentUser = data.users.find((u) => u.id === user.id);
-    if (studentUser) {
-      studentUser.xp = (studentUser.xp || 0) + xpEarned;
-      const levelInfo = calculateLevelInfo(studentUser.xp);
-      studentUser.level = levelInfo.level;
+    // XP update rule: Only add XP when beating previous personal record
+    const prevHighestXp = prog.highestXp || 0;
+    if (xpEarned > prevHighestXp) {
+      const diffXp = xpEarned - prevHighestXp;
+      if (studentUser) {
+        studentUser.xp = (studentUser.xp || 0) + diffXp;
+        const levelInfo = calculateLevelInfo(studentUser.xp);
+        studentUser.level = levelInfo.level;
+      }
+      prog.highestXp = xpEarned;
+    }
+
+    if (scorePercent > (prog.highestScore || 0)) {
+      prog.highestScore = scorePercent;
     }
 
     if (targetQuest.badgeReward) {
       newBadgeEarned = targetQuest.badgeReward;
     }
   } else {
+    // Not passed and never completed before
     prog.status = 'in_progress';
+    prog.score = scorePercent;
+    prog.xpEarned = xpEarned;
   }
 
   data.progress[user.id][questId] = prog;
@@ -479,15 +533,22 @@ app.post('/api/quests/:questId/submit', authMiddleware, (req: Request, res: Resp
   res.json({
     success: true,
     isPassed,
+    wasAlreadyCompleted,
     scorePercent,
     correctCount,
     totalQuestions,
+    minCorrectNeeded: passInfo.minCorrectNeeded,
     xpEarned,
+    highestXp: prog.highestXp || xpEarned,
+    highestScore: prog.highestScore || scorePercent,
     badgeEarned: newBadgeEarned,
+    attemptsCount: prog.attemptsCount,
     results,
     message: isPassed
-      ? `Tuyệt vời! Bạn đã vượt qua chặng với ${scorePercent}% điểm số và nhận ${xpEarned} XP!`
-      : `Bạn đạt ${scorePercent}%. Hãy xem lại kiến thức nền và thử lại nhé!`,
+      ? `Tuyệt vời! Bạn đã vượt qua chặng với ${correctCount}/${totalQuestions} câu đúng (${scorePercent}%) và nhận ${xpEarned} XP!`
+      : wasAlreadyCompleted
+      ? `Lần làm này bạn đạt ${correctCount}/${totalQuestions} câu đúng (${scorePercent}%). Trạng thái hoàn thành trước đó của bạn vẫn được bảo lưu!`
+      : `Bạn đạt ${correctCount}/${totalQuestions} câu đúng (${scorePercent}%). Chặng yêu cầu đúng tối thiểu ${passInfo.minCorrectNeeded}/${totalQuestions} câu (>50%). Hãy xem lại kiến thức và thử lại nhé!`,
   });
 });
 
@@ -989,10 +1050,10 @@ app.get('/api/teacher/students', authMiddleware, teacherOnly, (req: Request, res
   res.json({ students: detailed });
 });
 
-// POST /api/teacher/quests/:questId - edit quest unlock code, deadline, questions
+// POST /api/teacher/quests/:questId - edit quest unlock code, deadline, questions, XP and grading rules
 app.post('/api/teacher/quests/:questId', authMiddleware, teacherOnly, (req: Request, res: Response) => {
   const { questId } = req.params;
-  const { unlockCode, deadline, title, summary, xpReward } = req.body;
+  const { unlockCode, deadline, title, summary, xpReward, passThreshold, gradingRule } = req.body;
   const data = db.getData();
 
   let foundQuest: any = null;
@@ -1014,9 +1075,75 @@ app.post('/api/teacher/quests/:questId', authMiddleware, teacherOnly, (req: Requ
   if (title !== undefined) foundQuest.title = title.trim();
   if (summary !== undefined) foundQuest.summary = summary.trim();
   if (xpReward !== undefined) foundQuest.xpReward = Number(xpReward);
+  if (passThreshold !== undefined) foundQuest.passThreshold = Number(passThreshold);
+  if (gradingRule !== undefined) foundQuest.gradingRule = gradingRule;
 
   db.save();
   res.json({ success: true, quest: foundQuest });
+});
+
+// POST /api/teacher/change-password
+app.post('/api/teacher/change-password', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const teacher: User = (req as any).user;
+  const { oldPassword, newPassword } = req.body;
+
+  if (!oldPassword || !newPassword) {
+    res.status(400).json({ error: 'Vui lòng nhập mật khẩu cũ và mật khẩu mới.' });
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: 'Mật khẩu mới phải có tối thiểu 6 ký tự.' });
+    return;
+  }
+
+  const data = db.getData();
+  const target = data.users.find((u) => u.id === teacher.id);
+  if (!target) {
+    res.status(404).json({ error: 'Không tìm thấy tài khoản giáo viên.' });
+    return;
+  }
+
+  const isValid = target.passwordHash && target.salt
+    ? verifyPassword(oldPassword, target.passwordHash, target.salt)
+    : oldPassword === '#PdpProX1';
+
+  if (!isValid) {
+    res.status(401).json({ error: 'Mật khẩu cũ không chính xác.' });
+    return;
+  }
+
+  const { hash, salt } = hashPassword(newPassword);
+  target.passwordHash = hash;
+  target.salt = salt;
+  db.save();
+
+  res.json({ success: true, message: 'Đổi mật khẩu giáo viên thành công!' });
+});
+
+// POST /api/teacher/import-students - Excel / CSV import endpoint
+app.post('/api/teacher/import-students', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { roster } = req.body;
+  if (!Array.isArray(roster) || roster.length === 0) {
+    res.status(400).json({ error: 'Dữ liệu danh sách học sinh không hợp lệ.' });
+    return;
+  }
+
+  const result = db.importStudents(roster);
+  if (!result.success) {
+    res.status(400).json({
+      error: `Có lỗi trong dữ liệu nhập: ${result.errors.join('; ')}`,
+      errors: result.errors,
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    message: `Đã xử lý danh sách học sinh: Thêm mới ${result.addedCount} em, cập nhật ${result.updatedCount} em!`,
+    addedCount: result.addedCount,
+    updatedCount: result.updatedCount,
+  });
 });
 
 // POST /api/teacher/reset-database

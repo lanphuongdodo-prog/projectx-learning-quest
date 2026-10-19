@@ -1,4 +1,5 @@
-// Project X | Learning Quest - Security & Rate Limiting Logic
+// Project X | Learning Quest - Security, Normalization & Rate Limiting Logic
+import crypto from 'node:crypto';
 
 export interface AttemptRecord {
   count: number;
@@ -91,4 +92,60 @@ export class UnlockCodeRateLimiter {
   public clearRecord(userId: string, questId: string): void {
     this.attempts.delete(this.getKey(userId, questId));
   }
+}
+
+/**
+ * Normalizes full Vietnamese student name:
+ * - Trims leading and trailing whitespace
+ * - Collapses multiple spaces between words into a single space
+ * - Lowercases for comparison
+ */
+export function normalizeStudentName(name: string): string {
+  if (!name) return '';
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/**
+ * Normalizes Student ID (MSHS):
+ * - Preserves string representation so leading zeros are never lost
+ * - Trims whitespace
+ * - Uppercases
+ */
+export function normalizeMSHS(mshs: string): string {
+  if (!mshs) return '';
+  return String(mshs).trim().toUpperCase();
+}
+
+/**
+ * Checks if provided full name and MSHS match a registered student record
+ */
+export function isStudentAuthMatch(
+  inputName: string,
+  inputMSHS: string,
+  recordName: string,
+  recordMSHS: string
+): boolean {
+  const normInputName = normalizeStudentName(inputName);
+  const normRecordName = normalizeStudentName(recordName);
+  const normInputMSHS = normalizeMSHS(inputMSHS);
+  const normRecordMSHS = normalizeMSHS(recordMSHS);
+
+  return normInputName === normRecordName && normInputMSHS === normRecordMSHS;
+}
+
+/**
+ * Hash password securely with salt using SHA-256
+ */
+export function hashPassword(password: string, salt = crypto.randomBytes(16).toString('hex')): { hash: string; salt: string } {
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha256').toString('hex');
+  return { hash, salt };
+}
+
+/**
+ * Verify password against stored hash and salt
+ */
+export function verifyPassword(password: string, storedHash: string, salt: string): boolean {
+  if (!password || !storedHash || !salt) return false;
+  const { hash } = hashPassword(password, salt);
+  return hash === storedHash;
 }

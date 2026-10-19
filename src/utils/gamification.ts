@@ -103,3 +103,61 @@ export const SYSTEM_BADGES: BadgeDefinition[] = [
     category: 'portfolio',
   },
 ];
+
+/**
+ * Requirement 5.1: Calculate quest pass condition (> 50% of scored questions or custom threshold)
+ * Formula: minCorrectNeeded = Math.floor(totalScoredQuestions / 2) + 1 when threshold is 50%
+ * E.g.: 10 -> 6; 8 -> 5; 5 -> 3; 3 -> 2; 2 -> 2.
+ */
+export function calculateQuestPass(
+  correctCount: number,
+  totalScoredQuestions: number,
+  thresholdPercent = 50
+): {
+  isPassed: boolean;
+  minCorrectNeeded: number;
+  accuracyPercent: number;
+} {
+  const safeTotal = Math.max(1, totalScoredQuestions);
+  const minCorrectNeeded =
+    thresholdPercent <= 50
+      ? Math.floor(safeTotal / 2) + 1
+      : Math.max(1, Math.ceil((thresholdPercent / 100) * safeTotal));
+  const isPassed = correctCount >= minCorrectNeeded;
+  const accuracyPercent = Math.round((correctCount / safeTotal) * 100);
+
+  return {
+    isPassed,
+    minCorrectNeeded,
+    accuracyPercent,
+  };
+}
+
+/**
+ * Requirement 4 & 5.2: Calculate XP earned based on accuracy and quest maxXpReward
+ * Supports proportional conversion (accuracy % * maxXpReward) or full XP on pass
+ */
+export function calculateXpEarned(
+  correctCount: number,
+  totalScoredQuestions: number,
+  maxXpReward: number,
+  gradingRule: 'proportional' | 'full_on_pass' = 'proportional'
+): number {
+  const safeTotal = Math.max(1, totalScoredQuestions);
+  const safeMaxXp = Math.max(1, maxXpReward || 100);
+  const { isPassed } = calculateQuestPass(correctCount, safeTotal);
+
+  if (!isPassed) {
+    // If not passed, can award partial encouragement XP (proportional * 0.5)
+    return Math.round((correctCount / safeTotal) * safeMaxXp * 0.5);
+  }
+
+  if (gradingRule === 'full_on_pass') {
+    return safeMaxXp;
+  }
+
+  // Passed: proportional to accuracy
+  return Math.round((correctCount / safeTotal) * safeMaxXp);
+}
+
+
