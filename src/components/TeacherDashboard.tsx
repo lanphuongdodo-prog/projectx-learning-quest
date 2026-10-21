@@ -29,7 +29,9 @@ import {
   Palette,
   Layers,
   Sparkles,
+  Copy,
 } from 'lucide-react';
+import { QuestConfigEditorModal } from './QuestConfigEditorModal.tsx';
 
 interface TeacherDashboardProps {
   stages: Stage[];
@@ -292,38 +294,22 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
 
   const handleOpenEditQuest = (q: any) => {
     setEditingQuest(q);
-    setEditUnlockCode(q.unlockCode || '');
-    setEditDeadline(q.deadline ? new Date(q.deadline).toISOString().slice(0, 16) : '');
-    setEditTitle(q.title || '');
-    setEditSummary(q.summary || '');
-    setEditXpReward(q.xpReward !== undefined ? q.xpReward : 100);
-    setEditPassThreshold(q.passThreshold !== undefined ? q.passThreshold : 50);
-    setEditGradingRule(q.gradingRule || 'proportional');
-    setEditQuestStatus(q.status || 'published');
   };
 
-  const handleSaveQuest = async () => {
-    if (!editingQuest) return;
-    setQuestSaving(true);
+  const handleDuplicateQuest = async (questId: string, questTitle: string) => {
     try {
-      await api.updateTeacherQuest(editingQuest.id, {
-        unlockCode: editUnlockCode,
-        deadline: editDeadline ? new Date(editDeadline).toISOString() : undefined,
-        title: editTitle,
-        summary: editSummary,
-        xpReward: editXpReward,
-        passThreshold: editPassThreshold,
-        gradingRule: editGradingRule,
-        status: editQuestStatus,
-      });
-      alert('Đã cập nhật thông tin chặng và cấu hình điểm XP thành công!');
-      setEditingQuest(null);
+      await api.duplicateQuest(questId);
+      alert(`Đã sao chép thành công chặng "${questTitle}" thành bản nháp mới!`);
       onRefreshStages();
     } catch (err: any) {
-      alert(err.message || 'Lỗi khi cập nhật chặng');
-    } finally {
-      setQuestSaving(false);
+      alert(err.message || 'Lỗi khi sao chép chặng');
     }
+  };
+
+  const handleSaveQuestConfig = async (payload: Partial<Quest>) => {
+    if (!editingQuest) return;
+    await api.updateTeacherQuest(editingQuest.id, payload);
+    onRefreshStages();
   };
 
   // --- BACKGROUND HANDLERS ---
@@ -815,6 +801,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
                               </button>
 
                               <button
+                                onClick={() => handleDuplicateQuest(q.id, q.title)}
+                                className="p-1.5 rounded-xl bg-white border border-slate-300 text-slate-600 hover:bg-slate-100"
+                                title="Sao chép chặng"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
                                 onClick={() => handleDeleteQuest(q.id, q.title)}
                                 className="p-1.5 rounded-xl bg-white border border-rose-200 text-rose-600 hover:bg-rose-50"
                                 title="Xóa chặng"
@@ -1065,153 +1059,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ stages, onRe
             </div>
           )}
 
-          {/* Modal: Edit Existing Quest */}
+          {/* Comprehensive Quest Configuration Editor Modal */}
           {editingQuest && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-              <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl border border-slate-200 my-8">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md">
-                    Cấu hình chặng & Cơ chế điểm thưởng
-                  </span>
-                  <h4 className="text-lg font-black text-slate-900 mt-1">
-                    Thiết lập: {editingQuest.title}
-                  </h4>
-                </div>
-
-                <div className="space-y-4 text-xs font-bold text-slate-700">
-                  <div>
-                    <label className="block mb-1 text-slate-800">Tên chặng học tập:</label>
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 font-sans text-xs focus:border-orange-500 outline-hidden font-medium"
-                      placeholder="Nhập tên chặng..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block mb-1 text-slate-800">Mô tả tóm tắt chặng:</label>
-                    <textarea
-                      rows={2}
-                      value={editSummary}
-                      onChange={(e) => setEditSummary(e.target.value)}
-                      className="w-full px-4 py-2 rounded-xl border border-slate-300 font-sans text-xs focus:border-orange-500 outline-hidden font-medium"
-                      placeholder="Tóm tắt nội dung thử thách..."
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block mb-1 text-slate-800">Điểm XP tối đa:</label>
-                      <input
-                        type="number"
-                        min={10}
-                        step={10}
-                        value={editXpReward}
-                        onChange={(e) => setEditXpReward(Number(e.target.value))}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-black text-orange-600 focus:border-orange-500 outline-hidden"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block mb-1 text-slate-800">Ngưỡng đạt chặng:</label>
-                      <select
-                        value={editPassThreshold}
-                        onChange={(e) => setEditPassThreshold(Number(e.target.value))}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:border-orange-500 outline-hidden bg-white"
-                      >
-                        <option value={50}>Đúng trên 50% (&gt;50%)</option>
-                        <option value={60}>Đúng từ 60%</option>
-                        <option value={70}>Đúng từ 70%</option>
-                        <option value={80}>Đúng từ 80%</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block mb-1 text-slate-800">Quy tắc quy đổi điểm bài làm sang XP:</label>
-                    <select
-                      value={editGradingRule}
-                      onChange={(e) => setEditGradingRule(e.target.value as any)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:border-orange-500 outline-hidden bg-white"
-                    >
-                      <option value="proportional">Quy đổi theo tỷ lệ phần trăm câu đúng (Khuyên dùng)</option>
-                      <option value="full_on_pass">Nhận 100% XP khi vượt ngưỡng</option>
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block mb-1 text-slate-800">Mã mở khóa:</label>
-                      <input
-                        type="text"
-                        value={editUnlockCode}
-                        onChange={(e) => setEditUnlockCode(e.target.value.toUpperCase())}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs uppercase"
-                        placeholder="VD: QUEST-10A"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block mb-1 text-slate-800">Thời hạn chót (Deadline):</label>
-                      <input
-                        type="datetime-local"
-                        value={editDeadline}
-                        onChange={(e) => setEditDeadline(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-sans"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <label className="block mb-1 text-slate-800">Trạng thái chặng:</label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="questStatus"
-                          value="published"
-                          checked={editQuestStatus === 'published'}
-                          onChange={() => setEditQuestStatus('published')}
-                          className="text-orange-600 focus:ring-orange-500"
-                        />
-                        <span>Công bố cho học sinh</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="questStatus"
-                          value="draft"
-                          checked={editQuestStatus === 'draft'}
-                          onChange={() => setEditQuestStatus('draft')}
-                          className="text-orange-600 focus:ring-orange-500"
-                        />
-                        <span>Lưu bản nháp (Ẩn)</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 justify-end pt-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setEditingQuest(null)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveQuest}
-                    disabled={questSaving}
-                    className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-black shadow-md transition disabled:opacity-50"
-                  >
-                    {questSaving ? 'Đang lưu...' : 'Lưu thiết lập chặng'}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <QuestConfigEditorModal
+              quest={editingQuest}
+              stageTitle={
+                stages.find((s) => s.id === editingQuest.stageId)?.title || 'Giai đoạn học tập'
+              }
+              onClose={() => setEditingQuest(null)}
+              onSave={handleSaveQuestConfig}
+              onRefresh={onRefreshStages}
+            />
           )}
         </div>
       )}

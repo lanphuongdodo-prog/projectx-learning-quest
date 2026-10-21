@@ -1048,6 +1048,23 @@ class Database {
     return false;
   }
 
+  public duplicateQuest(questId: string): Quest | null {
+    for (const stage of this.data.stages) {
+      const q = stage.quests.find((item) => item.id === questId);
+      if (q) {
+        const cloned: Quest = JSON.parse(JSON.stringify(q));
+        cloned.id = `quest-${Date.now()}`;
+        cloned.title = `${q.title} (Bản sao)`;
+        cloned.order = stage.quests.length + 1;
+        cloned.status = 'draft';
+        stage.quests.push(cloned);
+        this.save();
+        return cloned;
+      }
+    }
+    return null;
+  }
+
   // --- PORTFOLIO BACKGROUNDS ---
   public getBackgrounds(): PortfolioBackgroundItem[] {
     return this.data.portfolioBackgrounds || DEFAULT_PORTFOLIO_BACKGROUNDS;

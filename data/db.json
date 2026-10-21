@@ -491,14 +491,89 @@
       "portfolioBackgroundId": "bg-wave"
     }
   ],
-  "stages": [],
+  "stages": [
+    {
+      "id": "stage-1792590795264",
+      "title": "Giai đoạn 1: Khởi động & Thấu cảm vấn đề",
+      "description": "Khám phá bối cảnh thực tế tại Hậu Giang, thấu cảm người dùng và giải mã nhu cầu cốt lõi.",
+      "order": 1,
+      "icon": "🧭",
+      "colorTheme": "orange",
+      "isPublished": true,
+      "status": "published",
+      "leaderboardPublished": true,
+      "quests": [
+        {
+          "id": "quest-1792590841941",
+          "stageId": "stage-1792590795264",
+          "title": "Chặng 01: La bàn Dự án & Xác định Thách thức",
+          "summary": "Làm quen với tư duy thiết kế và tìm hiểu bài toán thực tế.",
+          "storyline": "Làm quen với tư duy thiết kế và tìm hiểu bài toán thực tế.",
+          "order": 1,
+          "xpReward": 100,
+          "unlockType": "code",
+          "unlockCode": "FPT-X01",
+          "durationMinutes": 30,
+          "maxAttempts": 3,
+          "isDemoContent": false,
+          "passThreshold": 50,
+          "gradingRule": "proportional",
+          "status": "published",
+          "instructions": "",
+          "learningHub": {
+            "theorySummary": "",
+            "keyConcepts": [],
+            "guidelines": [],
+            "externalLinks": [],
+            "flashcards": [
+              {
+                "id": "fc-1792590910404-1",
+                "front": "Câu hỏi hoặc thuật ngữ mặt trước",
+                "back": "Đáp án, định nghĩa hoặc lời giải thích mặt sau",
+                "category": "Khái niệm"
+              }
+            ]
+          },
+          "interactiveGame": {
+            "type": "multiple_choice",
+            "instructions": "Trả lời đúng các câu hỏi để hoàn thành chặng.",
+            "questions": [
+              {
+                "id": "q-1792590930349-1",
+                "prompt": "Nội dung câu hỏi mới...",
+                "type": "multiple_choice",
+                "options": [
+                  "Phương án A",
+                  "Phương án B",
+                  "Phương án C",
+                  "Phương án D"
+                ],
+                "correctAnswer": "Phương án A",
+                "explanation": "Giải thích chi tiết tại sao đáp án này chính xác..."
+              }
+            ]
+          },
+          "recoveryConfig": {
+            "enabled": true,
+            "title": "Khôi phục quyền làm bài",
+            "taskType": "reflection",
+            "instructions": "Chia sẻ ngắn gọn điều bạn đã học được và cách bạn sẽ cải thiện kết quả ở lần tiếp theo.",
+            "minPassingScore": 50,
+            "extendedHours": 24,
+            "maxRecoveryAttempts": 3,
+            "requiresTeacherApproval": false
+          }
+        }
+      ]
+    }
+  ],
   "progress": {},
   "evidence": [],
   "feedback": [],
   "portfolios": {},
   "notifications": [],
   "flashcardProgress": {},
-  "lastUpdated": "2026-10-19T16:14:51.011Z",
+  "lastUpdated": "2026-10-21T13:57:49.695Z",
   "portfolioBackgrounds": [
     {
       "id": "bg-wave",

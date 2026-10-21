@@ -32,7 +32,7 @@ export const LoginPage: React.FC = () => {
     } catch (err: any) {
       setError(
         err.message ||
-          'Thông tin chưa khớp với danh sách học sinh của nhà trường. Bạn vui lòng kiểm tra lại họ tên và mã số học sinh nhé!'
+          'Thông tin đăng nhập chưa chính xác. Vui lòng kiểm tra họ tên và mã số học sinh.'
       );
     } finally {
       setLoading(false);

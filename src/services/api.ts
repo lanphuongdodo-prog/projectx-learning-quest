@@ -228,6 +228,10 @@ export const api = {
     return request(`/api/teacher/quests/${questId}`, { method: 'DELETE' });
   },
 
+  async duplicateQuest(questId: string): Promise<any> {
+    return request(`/api/teacher/quests/${questId}/duplicate`, { method: 'POST' });
+  },
+
   // Portfolio Backgrounds
   async getBackgrounds(): Promise<{ backgrounds: any[] }> {
     return request<{ backgrounds: any[] }>('/api/portfolio/backgrounds');

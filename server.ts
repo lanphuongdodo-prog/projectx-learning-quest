@@ -134,7 +134,7 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 
   if (!student) {
     res.status(401).json({
-      error: 'Thông tin chưa khớp với danh sách học sinh của nhà trường. Bạn vui lòng kiểm tra lại họ tên và mã số học sinh nhé!',
+      error: 'Thông tin đăng nhập chưa chính xác. Vui lòng kiểm tra họ tên và mã số học sinh.',
     });
     return;
   }
@@ -882,8 +882,50 @@ app.post('/api/teacher/feedback', authMiddleware, teacherOnly, (req: Request, re
 });
 
 // -------------------------------------------------------------
-// 6. PORTFOLIO (MY CREATIVE PORTFOLIO)
+// 6. PORTFOLIO (MY CREATIVE PORTFOLIO) & BACKGROUNDS
 // -------------------------------------------------------------
+
+// GET /api/portfolio/backgrounds (MUST be declared before /:studentId)
+app.get('/api/portfolio/backgrounds', authMiddleware, (req: Request, res: Response) => {
+  const user: User = (req as any).user;
+  const isTeacher = user.role === 'teacher';
+  const allBgs = db.getBackgrounds();
+  const list = isTeacher ? allBgs : allBgs.filter((b) => b.isActive !== false);
+  res.json({ backgrounds: list });
+});
+
+// POST /api/teacher/portfolio/backgrounds
+app.post('/api/teacher/portfolio/backgrounds', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { name, description, url, thumbnailUrl, isActive, order } = req.body;
+  if (!name || !url) {
+    res.status(400).json({ error: 'Vui lòng cung cấp tên hình nền và đường dẫn hình ảnh / gradient.' });
+    return;
+  }
+  const bg = db.createBackground({ name, description, url, thumbnailUrl, isActive, order });
+  res.json({ success: true, background: bg });
+});
+
+// PUT /api/teacher/portfolio/backgrounds/:id
+app.put('/api/teacher/portfolio/backgrounds/:id', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const bg = db.updateBackground(id, req.body);
+  if (!bg) {
+    res.status(404).json({ error: 'Không tìm thấy hình nền này.' });
+    return;
+  }
+  res.json({ success: true, background: bg });
+});
+
+// DELETE /api/teacher/portfolio/backgrounds/:id
+app.delete('/api/teacher/portfolio/backgrounds/:id', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const deleted = db.deleteBackground(id);
+  if (!deleted) {
+    res.status(404).json({ error: 'Không tìm thấy hình nền này để xóa.' });
+    return;
+  }
+  res.json({ success: true, message: 'Đã xóa hình nền thành công.' });
+});
 
 // GET /api/portfolio/:studentId
 app.get('/api/portfolio/:studentId', authMiddleware, (req: Request, res: Response) => {
@@ -984,51 +1026,6 @@ app.put('/api/portfolio', authMiddleware, (req: Request, res: Response) => {
   res.json({ success: true, portfolio: current });
 });
 
-// -------------------------------------------------------------
-// 6.1 PORTFOLIO BACKGROUNDS (LIBRARY MANAGED BY TEACHERS)
-// -------------------------------------------------------------
-
-// GET /api/portfolio/backgrounds
-app.get('/api/portfolio/backgrounds', authMiddleware, (req: Request, res: Response) => {
-  const user: User = (req as any).user;
-  const isTeacher = user.role === 'teacher';
-  const allBgs = db.getBackgrounds();
-  const list = isTeacher ? allBgs : allBgs.filter((b) => b.isActive !== false);
-  res.json({ backgrounds: list });
-});
-
-// POST /api/teacher/portfolio/backgrounds
-app.post('/api/teacher/portfolio/backgrounds', authMiddleware, teacherOnly, (req: Request, res: Response) => {
-  const { name, description, url, thumbnailUrl, isActive, order } = req.body;
-  if (!name || !url) {
-    res.status(400).json({ error: 'Vui lòng cung cấp tên hình nền và đường dẫn hình ảnh / gradient.' });
-    return;
-  }
-  const bg = db.createBackground({ name, description, url, thumbnailUrl, isActive, order });
-  res.json({ success: true, background: bg });
-});
-
-// PUT /api/teacher/portfolio/backgrounds/:id
-app.put('/api/teacher/portfolio/backgrounds/:id', authMiddleware, teacherOnly, (req: Request, res: Response) => {
-  const { id } = req.params;
-  const bg = db.updateBackground(id, req.body);
-  if (!bg) {
-    res.status(404).json({ error: 'Không tìm thấy hình nền này.' });
-    return;
-  }
-  res.json({ success: true, background: bg });
-});
-
-// DELETE /api/teacher/portfolio/backgrounds/:id
-app.delete('/api/teacher/portfolio/backgrounds/:id', authMiddleware, teacherOnly, (req: Request, res: Response) => {
-  const { id } = req.params;
-  const deleted = db.deleteBackground(id);
-  if (!deleted) {
-    res.status(404).json({ error: 'Không tìm thấy hình nền này để xóa.' });
-    return;
-  }
-  res.json({ success: true, message: 'Đã xóa hình nền thành công.' });
-});
 
 // -------------------------------------------------------------
 // 7. LEADERBOARD (STAGE & OVERALL)
@@ -1238,6 +1235,17 @@ app.delete('/api/teacher/quests/:questId', authMiddleware, teacherOnly, (req: Re
     return;
   }
   res.json({ success: true, message: 'Đã xóa chặng thành công.' });
+});
+
+// POST /api/teacher/quests/:questId/duplicate - duplicate quest
+app.post('/api/teacher/quests/:questId/duplicate', authMiddleware, teacherOnly, (req: Request, res: Response) => {
+  const { questId } = req.params;
+  const cloned = db.duplicateQuest(questId);
+  if (!cloned) {
+    res.status(404).json({ error: 'Không tìm thấy chặng này để sao chép.' });
+    return;
+  }
+  res.json({ success: true, quest: cloned, message: 'Đã sao chép chặng thành công.' });
 });
 
 // POST /api/teacher/change-password
